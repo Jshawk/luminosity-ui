@@ -2393,6 +2393,7 @@ function library:init()
                         
                         -- Bind Functions --
                         local c = nil
+                        local mouseButtonPressed = false
 
                         function bind:SetBind(keybind)
                             if c then
@@ -2440,8 +2441,14 @@ function library:init()
                                 return
                             end
 
+                            -- check if this input matches our bind
+                            local isOurBind = inp.KeyCode == bind.bind or inp.UserInputType == bind.bind
+                            if not isOurBind then return end
+
+                            mouseButtonPressed = true
+
                             -- hold: start on press
-                            if bind.mode == 'hold' and (inp.KeyCode == bind.bind or inp.UserInputType == bind.bind) then
+                            if bind.mode == 'hold' then
                                 bind.state = true
                                 if bind.flag then
                                     library.flags[bind.flag] = true
@@ -2462,31 +2469,35 @@ function library:init()
                         end)
 
                         utility:Connection(inputservice.InputEnded, function(inp)
-                            if inp.KeyCode == bind.bind or inp.UserInputType == bind.bind then
-                                if bind.mode == 'toggle' then
-                                    bind.state = not bind.state
-                                    if bind.flag then
-                                        library.flags[bind.flag] = bind.state
-                                    end
-                                    bind.callback(bind.state)
-                                    local display = bind.state
-                                    if bind.invertindicator then display = not display end
-                                    bind.indicatorValue:SetEnabled(display and not bind.noindicator)
+                            local isOurBind = inp.KeyCode == bind.bind or inp.UserInputType == bind.bind
+                            if not isOurBind then return end
+                            if not mouseButtonPressed then return end
+                            
+                            mouseButtonPressed = false
 
-                                elseif bind.mode == 'hold' then
-                                    bind.state = false
-                                    if bind.flag then
-                                        library.flags[bind.flag] = false
-                                    end
-                                    if c then
-                                        c:Disconnect()
-                                        c = nil
-                                    end
-                                    bind.callback(false)
-                                    local display = false
-                                    if bind.invertindicator then display = true end
-                                    bind.indicatorValue:SetEnabled(display and not bind.noindicator)
+                            if bind.mode == 'toggle' then
+                                bind.state = not bind.state
+                                if bind.flag then
+                                    library.flags[bind.flag] = bind.state
                                 end
+                                bind.callback(bind.state)
+                                local display = bind.state
+                                if bind.invertindicator then display = not display end
+                                bind.indicatorValue:SetEnabled(display and not bind.noindicator)
+
+                            elseif bind.mode == 'hold' then
+                                bind.state = false
+                                if bind.flag then
+                                    library.flags[bind.flag] = false
+                                end
+                                if c then
+                                    c:Disconnect()
+                                    c = nil
+                                end
+                                bind.callback(false)
+                                local display = false
+                                if bind.invertindicator then display = true end
+                                bind.indicatorValue:SetEnabled(display and not bind.noindicator)
                             end
                         end)
 
@@ -3981,6 +3992,8 @@ function library:init()
                     ----------------------
 
                     local c
+                    local isMouseBind = false
+                    local mouseButtonPressed = false
 
                     function bind:SetText(str)
                         if typeof(str) == 'string' then
@@ -4028,13 +4041,20 @@ function library:init()
                             local key = (table.find({Enum.UserInputType.MouseButton1, Enum.UserInputType.MouseButton2, Enum.UserInputType.MouseButton3}, inp.UserInputType) and not bind.nomouse) and inp.UserInputType or (not table.find(blacklistedKeys, inp.KeyCode) and inp.KeyCode)
                             if key then
                                 bind:SetBind(key)
+                                isMouseBind = table.find({Enum.UserInputType.MouseButton1, Enum.UserInputType.MouseButton2, Enum.UserInputType.MouseButton3}, key) ~= nil
                             end
                             bind.binding = false
                             return
                         end
 
+                        -- check if this input matches our bind
+                        local isOurBind = inp.KeyCode == bind.bind or inp.UserInputType == bind.bind
+                        if not isOurBind then return end
+
+                        mouseButtonPressed = true
+
                         -- hold: start on press
-                        if bind.mode == 'hold' and (inp.KeyCode == bind.bind or inp.UserInputType == bind.bind) then
+                        if bind.mode == 'hold' then
                             bind.state = true
                             if bind.flag then
                                 library.flags[bind.flag] = true
@@ -4053,27 +4073,31 @@ function library:init()
                     end)
 
                     utility:Connection(inputservice.InputEnded, function(inp)
-                        if inp.KeyCode == bind.bind or inp.UserInputType == bind.bind then
-                            if bind.mode == 'toggle' then
-                                bind.state = not bind.state
-                                if bind.flag then
-                                    library.flags[bind.flag] = bind.state
-                                end
-                                bind.callback(bind.state)
-                                bind.indicatorValue:SetEnabled(bind.state and not bind.noindicator)
+                        local isOurBind = inp.KeyCode == bind.bind or inp.UserInputType == bind.bind
+                        if not isOurBind then return end
+                        if not mouseButtonPressed then return end
+                        
+                        mouseButtonPressed = false
 
-                            elseif bind.mode == 'hold' then
-                                bind.state = false
-                                if bind.flag then
-                                    library.flags[bind.flag] = false
-                                end
-                                if c then
-                                    c:Disconnect()
-                                    c = nil
-                                end
-                                bind.callback(false)
-                                bind.indicatorValue:SetEnabled(false)
+                        if bind.mode == 'toggle' then
+                            bind.state = not bind.state
+                            if bind.flag then
+                                library.flags[bind.flag] = bind.state
                             end
+                            bind.callback(bind.state)
+                            bind.indicatorValue:SetEnabled(bind.state and not bind.noindicator)
+
+                        elseif bind.mode == 'hold' then
+                            bind.state = false
+                            if bind.flag then
+                                library.flags[bind.flag] = false
+                            end
+                            if c then
+                                c:Disconnect()
+                                c = nil
+                            end
+                            bind.callback(false)
+                            bind.indicatorValue:SetEnabled(false)
                         end
                     end)
 
