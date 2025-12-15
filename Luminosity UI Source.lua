@@ -2391,8 +2391,8 @@ function library:init()
     
                         end
                         ----------------------
-    
-                        local holdingConnection
+                        
+                        -- Bind Functions
 
                         local holdingConnection
 
