@@ -3,7 +3,7 @@
     ║                     LUMINOSITY HUB                            ║
     ║              Universal Aimbot & ESP Script                    ║
     ║                                                               ║
-    ║  Credits: @xz, @goof (Original Devs)                          ║
+    ║  Credits: @jshawk (Original Dev)                              ║
     ║  UI Library: Luminosity UI                                    ║
     ╚═══════════════════════════════════════════════════════════════╝
 ]]
