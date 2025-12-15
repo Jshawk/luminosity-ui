@@ -2464,23 +2464,18 @@ function library:init()
                                     local display = bind.state; if bind.invertindicator then display = not bind.state; end
                                     bind.indicatorValue:SetEnabled(display and not bind.noindicator);
                                 elseif bind.mode == 'hold' then
+                                    bind.state = true
                                     if bind.flag then
                                         library.flags[bind.flag] = true;
                                     end
-                                    bind.indicatorValue:SetEnabled(true and not bind.noindicator);
-                                    c = utility:Connection(runservice.RenderStepped, function()
-                                        bind.callback(true);
-                                    end)
-                                    bind.indicatorValue:SetEnabled((not bind.invertindicator and true or false) and not bind.noindicator);
-                                    c = utility:Connection(runservice.RenderStepped, function()
-                                        if bind.callback then
-                                            bind.callback(true);
-                                        end
-                                    end)
+                                    local display = bind.state; if bind.invertindicator then display = not bind.state; end
+                                    bind.indicatorValue:SetEnabled(display and not bind.noindicator);
+                                    bind.callback(true);
+                                    end
                                 end
-                            end
-                        end)
-    
+                            end)
+                        end
+
                         utility:Connection(inputservice.InputEnded, function(inp)
                             if bind.bind ~= 'none' then
                                 if inp.KeyCode == bind.bind or inp.UserInputType == bind.bind then
@@ -4494,7 +4489,7 @@ function library:init()
         self.watermark = {
             objects = {};
             text = {
-                {"Luminosity", true},
+                {"Luminosity.wtf", true},
                 {"V"..getgenv().Config.Version, true},
                 {getgenv().luaguardvars.DiscordName, true},
                 {'0 fps', true},
@@ -4624,9 +4619,12 @@ function library:CreateSettingsTab(menu)
     local configSection = settingsTab:AddSection('Config', 2);
     local mainSection = settingsTab:AddSection('Main', 1);
     local creditsSection = settingsTab:AddSection('Credits', 2);
-    creditsSection:AddSeparator({text = 'Lead Developer'});
-    creditsSection:AddText({text = "Jshawk"})
-
+    creditsSection:AddSeparator({text = 'Owners/Developers'});
+    creditsSection:AddText({text = "xz#1111"})
+    creditsSection:AddText({text = "goof#1000"})
+    creditsSection:AddSeparator({text = 'Helpers'});
+    creditsSection:AddText({text = "encode#9999"})
+    creditsSection:AddText({text = "Vault#5434"})
 
 
     configSection:AddBox({text = 'Config Name', flag = 'configinput'})
@@ -4764,4 +4762,3 @@ end
 
 getgenv().library = library
 return library
-
