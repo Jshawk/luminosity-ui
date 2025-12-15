@@ -1,6 +1,6 @@
 <div align="center">
 
-**LUMINOSITY 
+##**LUMINOSITY 
 HUB**
 
 [![Version](https://img.shields.io/badge/version-2.0-red.svg)](https://github.com/Jshawk/luminosity-ui)
