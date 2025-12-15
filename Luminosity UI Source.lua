@@ -2343,11 +2343,10 @@ function library:init()
                         end
 
                         if bind.bind == 'none' then
-                            bind.state = true
+                            bind.state = false
                             if bind.flag then
                                 library.flags[bind.flag] = bind.state;
                             end
-                            bind.callback(true)
                             local display = bind.state; if bind.invertindicator then display = not bind.state; end
                             bind.indicatorValue:SetEnabled(display and not bind.noindicator);
                             bind.indicatorValue:SetKey((bind.text == nil or bind.text == '') and (bind.flag == nil and 'unknown' or bind.flag) or bind.text); -- this is so dumb
@@ -2444,6 +2443,7 @@ function library:init()
 
                             -- pressed the bind (for hold mode only)
                             if (inp.KeyCode == bind.bind or inp.UserInputType == bind.bind) and not keyPressed and bind.mode == 'hold' then
+                                print("Hold pressed")
                                 keyPressed = true
                                 
                                 bind.state = true
@@ -2462,17 +2462,22 @@ function library:init()
                                     bind.callback(true)
                                 end)
                             elseif (inp.KeyCode == bind.bind or inp.UserInputType == bind.bind) and not keyPressed then
+                                print("Bind pressed, mode:", bind.mode, "keyPressed set to true")
                                 keyPressed = true
                             end
                         end)
 
                         utility:Connection(inputservice.InputEnded, function(inp)
+                            print("InputEnded fired - bind.bind:", bind.bind, "inp.KeyCode:", inp.KeyCode, "inp.UserInputType:", inp.UserInputType)
                             if inp.KeyCode == bind.bind or inp.UserInputType == bind.bind then
+                                print("Bind key matched! keyPressed:", keyPressed)
                                 if keyPressed then
                                     keyPressed = false
+                                    print("Mode:", bind.mode)
                                     
                                     if bind.mode == 'toggle' then
                                         bind.state = not bind.state
+                                        print("Toggled to:", bind.state)
                                         if bind.flag then
                                             library.flags[bind.flag] = bind.state
                                         end
