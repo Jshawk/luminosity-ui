@@ -32,7 +32,7 @@
 
 ## ✨ Features
 
-**Luminosity** is a comprehensive universal Roblox script packed with professional-grade features for competitive gameplay:
+**Luminosity** is a comprehensive universal Roblox script demonstration with advanced features:
 
 - 🎯 **Advanced Aimbot** - Precision targeting with customizable settings
 - 👁️ **ESP System** - Complete player awareness with multiple visual options
@@ -71,7 +71,7 @@ loadstring(game:HttpGet("https://raw.githubusercontent.com/Jshawk/luminosity-ui/
 3. **Paste the loadstring** from the installation section
 4. **Execute** the script
 5. **Wait for the UI** to load (animated loading screen)
-6. **Configure your settings** and start dominating!
+6. **Configure your settings** and explore the features!
 
 ### Keybinds
 
