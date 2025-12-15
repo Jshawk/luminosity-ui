@@ -2093,7 +2093,7 @@ library:SendNotification("Press RightShift to toggle menu", 3, Color3.fromRGB(10
 task.spawn(function()
     task.wait(0.1)
     tabs.Visuals:Select()
-    task.wait(0.05)
+    task.wait(0.01)
     tabs.Aimbot:Select()
 end)
 
