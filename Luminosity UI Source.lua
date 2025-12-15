@@ -2393,7 +2393,7 @@ function library:init()
                         ----------------------
                         
                         -- Bind Functions --
-                        local holdingConnection
+                        local holdingConnection = nil
 
                         function bind:SetBind(keybind)
                             if holdingConnection then
