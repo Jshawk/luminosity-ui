@@ -202,16 +202,7 @@ The script uses customizable keybinds that you can configure in the UI:
 
 Luminosity is designed to work with **all major Roblox executors**, including but not limited to:
 
-- ✔️ **Synapse X** / **Synapse Z**
-- ✔️ **Script-Ware**
-- ✔️ **KRNL**
-- ✔️ **Fluxus**
-- ✔️ **Oxygen U**
-- ✔️ **Electron**
-- ✔️ **Arceus X** (Mobile)
-- ✔️ **Codex**
-- ✔️ **JJSploit**
-- ✔️ And most other executors!
+** Luminosity supports ALL executors due to the low function usage**
 
 ### 🎮 Game Compatibility
 
