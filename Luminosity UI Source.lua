@@ -4519,7 +4519,7 @@ function library:init()
             text = {
                 {"Luminosity", true},
                 {"V"..getgenv().Config.Version, true},
-                {getgenv().luaguardvars.DiscordName, true},
+                {game:GetService("Players").LocalPlayer.Name, true},
                 {'0 fps', true},
                 {'0ms', true},
             };
