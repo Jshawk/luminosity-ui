@@ -200,9 +200,7 @@ The script uses customizable keybinds that you can configure in the UI:
 
 ### ✅ Supported Executors
 
-Luminosity is designed to work with **all major Roblox executors**, including but not limited to:
-
-** Luminosity supports ALL executors due to the low function usage**
+**Luminosity supports ALL executors due to the low function usage**
 
 ### 🎮 Game Compatibility
 
