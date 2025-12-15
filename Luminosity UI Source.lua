@@ -2477,19 +2477,34 @@ function library:init()
                         end)
 
                         utility:Connection(inputservice.InputEnded, function(inp)
-                        if bind.bind ~= 'none' then
-                            if inp.KeyCode == bind.bind or inp.UserInputType == bind.bind then
-                                if c then
-                                    c:Disconnect();
-                                    if bind.flag then
-                                        library.flags[bind.flag] = false;
-                                    end
-                                    bind.callback(false);
-                                    bind.indicatorValue:SetEnabled(false);
-                                end
+                            if bind.mode == 'hold' then
+                                return
                             end
-                        end
-                    end)
+
+                            if inp.KeyCode ~= bind.bind and inp.UserInputType ~= bind.bind then
+                                return
+                            end
+
+                            if not bind.state then
+                                return
+                            end
+
+                            bind.state = false
+                            if bind.flag then
+                                library.flags[bind.flag] = false
+                            end
+
+                            if holdingConnection then
+                                holdingConnection:Disconnect()
+                                holdingConnection = nil
+                            end
+
+                            bind.callback(false)
+
+                            local display = false
+                            if bind.invertindicator then display = true end
+                            bind.indicatorValue:SetEnabled(display and not bind.noindicator)
+                        end)
 
                         tooltip(bind)
                         bind:SetBind(bind.bind)
