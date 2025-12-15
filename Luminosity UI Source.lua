@@ -2483,15 +2483,10 @@ function library:init()
                         end)
     
                         utility:Connection(inputservice.InputEnded, function(inp)
-                            if bind.mode ~= 'hold' then
-                                return
-                            end
                             if bind.bind ~= 'none' then
                                 if inp.KeyCode == bind.bind or inp.UserInputType == bind.bind then
                                     if c then
                                         c:Disconnect();
-                                        c = nil
-                                        bind.state = false
                                         if bind.flag then
                                             library.flags[bind.flag] = false;
                                         end
