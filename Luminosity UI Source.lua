@@ -1,5 +1,5 @@
 --[[
-Octohook ui lib informant version
+Octohook ui lib Luminosity version
 Developed by liam#4567
 Edited by xz#1111
 ]]
@@ -103,7 +103,7 @@ library.themes = {
         }
     },
     {
-        name = 'Informant_V1',
+        name = 'Luminosity_V1',
         theme = {
             ['Accent']                    = fromrgb(103,89,179);
             ['Background']                = fromrgb(22,22,31);
@@ -4517,7 +4517,7 @@ function library:init()
         self.watermark = {
             objects = {};
             text = {
-                {"informant.wtf", true},
+                {"Luminosity", true},
                 {"V"..getgenv().Config.Version, true},
                 {getgenv().luaguardvars.DiscordName, true},
                 {'0 fps', true},
@@ -4647,12 +4647,8 @@ function library:CreateSettingsTab(menu)
     local configSection = settingsTab:AddSection('Config', 2);
     local mainSection = settingsTab:AddSection('Main', 1);
     local creditsSection = settingsTab:AddSection('Credits', 2);
-    creditsSection:AddSeparator({text = 'Owners/Developers'});
-    creditsSection:AddText({text = "xz#1111"})
-    creditsSection:AddText({text = "goof#1000"})
-    creditsSection:AddSeparator({text = 'Helpers'});
-    creditsSection:AddText({text = "encode#9999"})
-    creditsSection:AddText({text = "Vault#5434"})
+    creditsSection:AddSeparator({text = 'Lead Developer'});
+    creditsSection:AddText({text = "Jshawk/Xaddy"})
 
 
     configSection:AddBox({text = 'Config Name', flag = 'configinput'})
