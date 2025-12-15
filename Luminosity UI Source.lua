@@ -2442,57 +2442,59 @@ function library:init()
                                 return
                             end
 
-                            -- pressed the bind
-                            if (inp.KeyCode == bind.bind or inp.UserInputType == bind.bind) and not keyPressed then
+                            -- pressed the bind (for hold mode only)
+                            if (inp.KeyCode == bind.bind or inp.UserInputType == bind.bind) and not keyPressed and bind.mode == 'hold' then
                                 keyPressed = true
                                 
-                                if bind.mode == 'toggle' then
-                                    bind.state = not bind.state
-                                    if bind.flag then
-                                        library.flags[bind.flag] = bind.state
-                                    end
-                                    bind.callback(bind.state)
-                                    local display = bind.state
-                                    if bind.invertindicator then display = not display end
-                                    bind.indicatorValue:SetEnabled(display and not bind.noindicator)
-
-                                elseif bind.mode == 'hold' then
-                                    bind.state = true
-                                    if bind.flag then
-                                        library.flags[bind.flag] = true
-                                    end
-                                    bind.callback(true)
-                                    local display = true
-                                    if bind.invertindicator then display = false end
-                                    bind.indicatorValue:SetEnabled(display and not bind.noindicator)
-
-                                    if c then
-                                        c:Disconnect()
-                                    end
-                                    c = utility:Connection(runservice.RenderStepped, function()
-                                        bind.callback(true)
-                                    end)
+                                bind.state = true
+                                if bind.flag then
+                                    library.flags[bind.flag] = true
                                 end
+                                bind.callback(true)
+                                local display = true
+                                if bind.invertindicator then display = false end
+                                bind.indicatorValue:SetEnabled(display and not bind.noindicator)
+
+                                if c then
+                                    c:Disconnect()
+                                end
+                                c = utility:Connection(runservice.RenderStepped, function()
+                                    bind.callback(true)
+                                end)
+                            elseif (inp.KeyCode == bind.bind or inp.UserInputType == bind.bind) and not keyPressed then
+                                keyPressed = true
                             end
                         end)
 
                         utility:Connection(inputservice.InputEnded, function(inp)
                             if inp.KeyCode == bind.bind or inp.UserInputType == bind.bind then
-                                keyPressed = false
-                                
-                                if bind.mode == 'hold' then
-                                    bind.state = false
-                                    if bind.flag then
-                                        library.flags[bind.flag] = false
+                                if keyPressed then
+                                    keyPressed = false
+                                    
+                                    if bind.mode == 'toggle' then
+                                        bind.state = not bind.state
+                                        if bind.flag then
+                                            library.flags[bind.flag] = bind.state
+                                        end
+                                        bind.callback(bind.state)
+                                        local display = bind.state
+                                        if bind.invertindicator then display = not display end
+                                        bind.indicatorValue:SetEnabled(display and not bind.noindicator)
+
+                                    elseif bind.mode == 'hold' then
+                                        bind.state = false
+                                        if bind.flag then
+                                            library.flags[bind.flag] = false
+                                        end
+                                        if c then
+                                            c:Disconnect()
+                                            c = nil
+                                        end
+                                        bind.callback(false)
+                                        local display = false
+                                        if bind.invertindicator then display = true end
+                                        bind.indicatorValue:SetEnabled(display and not bind.noindicator)
                                     end
-                                    if c then
-                                        c:Disconnect()
-                                        c = nil
-                                    end
-                                    bind.callback(false)
-                                    local display = false
-                                    if bind.invertindicator then display = true end
-                                    bind.indicatorValue:SetEnabled(display and not bind.noindicator)
                                 end
                             end
                         end)
