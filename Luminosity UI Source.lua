@@ -2482,6 +2482,7 @@ function library:init()
                             if bind.invertindicator then display = true end
                             bind.indicatorValue:SetEnabled(display and not bind.noindicator)
                         end)
+                        print("Bind mode:", bind.mode, "Expected: hold")
 
                         tooltip(bind);
                         bind:SetBind(bind.bind);
