@@ -2392,9 +2392,34 @@ function library:init()
                         end
                         ----------------------
                         
-                        -- Bind Functions
-
+                        -- Bind Functions --
                         local holdingConnection
+
+                        function bind:SetBind(keybind)
+                            if holdingConnection then
+                                holdingConnection:Disconnect()
+                                holdingConnection = nil
+                            end
+                            
+                            self.bind = keybind == Enum.KeyCode.Backspace and 'none' or keybind or self.bind
+                            
+                            local keyName = 'NONE'
+                            if self.bind ~= 'none' then
+                                keyName = keyNames[self.bind] or self.bind.Name or tostring(self.bind)
+                            end
+                            
+                            self.keycallback(self.bind)
+                            self:SetKeyText(keyName:upper())
+                            self.indicatorValue:SetKey((self.text == nil or self.text == '') and (self.flag == nil and 'unknown' or self.flag) or self.text)
+                            self.indicatorValue:SetValue('['..keyName:upper()..']')
+                            self.objects.keyText.ThemeColor = self.objects.holder.Hover and 'Accent' or 'Option Text 3'
+                        end
+
+                        function bind:SetKeyText(str)
+                            str = tostring(str)
+                            self.objects.keyText.Text = '['..str..']'
+                            self.objects.keyText.Position = newUDim2(1, -self.objects.keyText.TextBounds.X, 0, 2)
+                        end
 
                         utility:Connection(inputservice.InputBegan, function(inp)
                             if inputservice:GetFocusedTextBox() then
@@ -2403,12 +2428,10 @@ function library:init()
 
                             -- assigning a new key
                             if bind.binding then
-                                local key =
-                                    (table.find(
-                                        {Enum.UserInputType.MouseButton1, Enum.UserInputType.MouseButton2, Enum.UserInputType.MouseButton3},
-                                        inp.UserInputType
-                                    ) and not bind.nomouse) and inp.UserInputType
-                                    or (not table.find(blacklistedKeys, inp.KeyCode) and inp.KeyCode)
+                                local key = (table.find(
+                                    {Enum.UserInputType.MouseButton1, Enum.UserInputType.MouseButton2, Enum.UserInputType.MouseButton3},
+                                    inp.UserInputType
+                                ) and not bind.nomouse) and inp.UserInputType or (not table.find(blacklistedKeys, inp.KeyCode) and inp.KeyCode)
 
                                 if key then
                                     bind:SetBind(key)
@@ -2420,8 +2443,6 @@ function library:init()
 
                             -- pressed the bind
                             if inp.KeyCode == bind.bind or inp.UserInputType == bind.bind then
-                                print("Bind pressed! Mode:", bind.mode, "Expected: hold")
-                                
                                 if bind.mode == 'toggle' then
                                     bind.state = not bind.state
                                     if bind.flag then
@@ -2435,8 +2456,7 @@ function library:init()
                                     bind.indicatorValue:SetEnabled(display and not bind.noindicator)
 
                                 elseif bind.mode == 'hold' then
-                                    print("Hold mode activated!")
-                                    if bind.state then return end -- prevent repeat firing
+                                    if bind.state then return end
 
                                     bind.state = true
                                     if bind.flag then
@@ -2485,11 +2505,10 @@ function library:init()
                             if bind.invertindicator then display = true end
                             bind.indicatorValue:SetEnabled(display and not bind.noindicator)
                         end)
-                        print("Bind mode:", bind.mode, "Expected: hold")
 
-                        tooltip(bind);
-                        bind:SetBind(bind.bind);
-                        self:UpdateOptions();
+                        tooltip(bind)
+                        bind:SetBind(bind.bind)
+                        self:UpdateOptions()
                         return bind
                     end
 
