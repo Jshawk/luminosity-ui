@@ -1,5 +1,5 @@
 --[[
-Octohook ui lib informant version
+Octohook ui lib Luminosity version
 Developed by liam#4567
 Edited by xz#1111
 ]]
@@ -103,7 +103,7 @@ library.themes = {
         }
     },
     {
-        name = 'Informant_V1',
+        name = 'Luminosity_V1',
         theme = {
             ['Accent']                    = fromrgb(103,89,179);
             ['Background']                = fromrgb(22,22,31);
@@ -4494,7 +4494,7 @@ function library:init()
         self.watermark = {
             objects = {};
             text = {
-                {"informant.wtf", true},
+                {"Luminosity.wtf", true},
                 {"V"..getgenv().Config.Version, true},
                 {getgenv().luaguardvars.DiscordName, true},
                 {'0 fps', true},
