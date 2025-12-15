@@ -49,6 +49,8 @@
 
 ### Quick Install
 
+> **⚠️ Security Note**: Always review code before executing it. The loadstring below fetches the script from this repository.
+
 Simply execute the following loadstring in your preferred Roblox executor:
 
 ```lua
