@@ -2444,53 +2444,88 @@ function library:init()
     
                         local holdingConnection
 
-utility:Connection(inputservice.InputBegan, function(inp)
-    if inputservice:GetFocusedTextBox() then
+                        utility:Connection(inputservice.InputBegan, function(inp)
+                        if inputservice:GetFocusedTextBox() then
+                            return
+                        end
+
+                        -- binding a new key
+                        if bind.binding then
+                        local key = (table.find(
+                            {Enum.UserInputType.MouseButton1, Enum.UserInputType.MouseButton2, Enum.UserInputType.MouseButton3},
+                            inp.UserInputType) and not bind.nomouse) and inp.UserInputType
+                            bind:SetBind(key or ((not table.find(blacklistedKeys, inp.KeyCode)) and inp.KeyCode))
+                            bind.binding = false
+                            return
+                        end
+
+                        -- "Always" bind
+                        if bind.bind == "none" then
+                        bind.state = true
+                        if bind.flag then
+                            library.flags[bind.flag] = true
+                        end
+                        if bind.callback then
+                            bind.callback(true)
+                        end
+                        local display = bind.state
+                        if bind.invertindicator then display = not bind.state end
+                            bind.indicatorValue:SetEnabled(display and not bind.noindicator)
+                            return
+                        end
+
+                        -- pressed the bind
+                        if (inp.KeyCode == bind.bind or inp.UserInputType == bind.bind) then
+                        if bind.mode == "toggle" then
+                            bind.state = not bind.state
+                        if bind.flag then
+                            library.flags[bind.flag] = bind.state
+                        end
+                        if bind.callback then
+                            bind.callback(bind.state)
+                        end
+                        local display = bind.state
+                        if bind.invertindicator then display = not bind.state end
+                            bind.indicatorValue:SetEnabled(display and not bind.noindicator)
+
+                        elseif bind.mode == "hold" then
+                        -- prevent repeat firing while key is already held
+                         if bind.state then return end
+
+                        bind.state = true
+                        if bind.flag then
+                            library.flags[bind.flag] = true
+                        end
+
+                        if bind.callback then
+                            bind.callback(true)
+                        end
+
+                        local display = true
+                        if bind.invertindicator then display = false end
+                        bind.indicatorValue:SetEnabled(display and not bind.noindicator)
+
+                        holdingConnection = utility:Connection(runservice.RenderStepped, function()
+                        if bind.callback then
+                        bind.callback(true)
+                    end
+                end)
+            end
+        end
+    end)
+
+utility:Connection(inputservice.InputEnded, function(inp)
+    if bind.mode ~= "hold" then
         return
     end
 
-    if bind.binding then
-        local key = (table.find(
-            {Enum.UserInputType.MouseButton1, Enum.UserInputType.MouseButton2, Enum.UserInputType.MouseButton3},
-            inp.UserInputType
-        ) and not bind.nomouse) and inp.UserInputType
-
-        bind:SetBind(key or (not table.find(blacklistedKeys, inp.KeyCode)) and inp.KeyCode)
-        bind.binding = false
-
-    elseif (inp.KeyCode == bind.bind or inp.UserInputType == bind.bind) and not bind.binding then
-        if bind.mode == "toggle" then
-            bind.state = not bind.state
-            if bind.flag then
-                library.flags[bind.flag] = bind.state
-            end
-            bind.callback(bind.state)
-
-            local display = bind.state
-            if bind.invertindicator then display = not bind.state end
-            bind.indicatorValue:SetEnabled(display and not bind.noindicator)
-
-        elseif bind.mode == "hold" then
-            bind.state = true
-            if bind.flag then
-                library.flags[bind.flag] = true
-            end
-
-            bind.callback(true)
-            bind.indicatorValue:SetEnabled((not bind.invertindicator) and not bind.noindicator)
-
-            holdingConnection = utility:Connection(runservice.RenderStepped, function()
-                if bind.callback then
-                    bind.callback(true)
-                end
-            end)
-        end
+    if inp.KeyCode ~= bind.bind and inp.UserInputType ~= bind.bind then
+        return
     end
-end)
 
-utility:Connection(inputservice.InputEnded, function(inp)
-    if bind.mode ~= "hold" then return end
-    if inp.KeyCode ~= bind.bind and inp.UserInputType ~= bind.bind then return end
+    if not bind.state then
+        return
+    end
 
     bind.state = false
     if bind.flag then
@@ -2502,26 +2537,15 @@ utility:Connection(inputservice.InputEnded, function(inp)
         holdingConnection = nil
     end
 
-    bind.callback(false)
-    bind.indicatorValue:SetEnabled((bind.invertindicator) and not bind.noindicator)
+    if bind.callback then
+        bind.callback(false)
+    end
+
+    local display = false
+    if bind.invertindicator then display = true end
+    bind.indicatorValue:SetEnabled(display and not bind.noindicator)
 end)
-    
-                        utility:Connection(inputservice.InputEnded, function(inp)
-                            if bind.bind ~= 'none' then
-                                if inp.KeyCode == bind.bind or inp.UserInputType == bind.bind then
-                                    if c then
-                                        c:Disconnect();
-                                        if bind.flag then
-                                            library.flags[bind.flag] = false;
-                                        end
-                                        if bind.callback then
-                                            bind.callback(false);
-                                        end
-                                        bind.indicatorValue:SetEnabled(bind.invertindicator and true or false);
-                                    end
-                                end
-                            end
-                        end)
+
     
                         tooltip(bind);
                         bind:SetBind(bind.bind);
