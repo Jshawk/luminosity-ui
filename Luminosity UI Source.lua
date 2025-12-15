@@ -2442,6 +2442,9 @@ function library:init()
                             toggle:UpdateOptions();
                         end
     
+                        local c
+                        local lastBindPress = 0
+
                         utility:Connection(inputservice.InputBegan, function(inp)
                             if inputservice:GetFocusedTextBox() then
                                 return
@@ -2456,13 +2459,17 @@ function library:init()
                                 bind.indicatorValue:SetEnabled(display and not bind.noindicator)
                             elseif (inp.KeyCode == bind.bind or inp.UserInputType == bind.bind) and not bind.binding then
                                 if bind.mode == 'toggle' then
-                                    bind.state = not bind.state
-                                    if bind.flag then
-                                        library.flags[bind.flag] = bind.state;
+                                    local currentTime = tick()
+                                    if currentTime - lastBindPress > 0.1 then
+                                        lastBindPress = currentTime
+                                        bind.state = not bind.state
+                                        if bind.flag then
+                                            library.flags[bind.flag] = bind.state;
+                                        end
+                                        bind.callback(bind.state)
+                                        local display = bind.state; if bind.invertindicator then display = not bind.state; end
+                                        bind.indicatorValue:SetEnabled(display and not bind.noindicator);
                                     end
-                                    bind.callback(bind.state)
-                                    local display = bind.state; if bind.invertindicator then display = not bind.state; end
-                                    bind.indicatorValue:SetEnabled(display and not bind.noindicator);
                                 elseif bind.mode == 'hold' then
                                     if c then
                                         c:Disconnect()
