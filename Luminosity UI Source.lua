@@ -2420,6 +2420,8 @@ function library:init()
 
                             -- pressed the bind
                             if inp.KeyCode == bind.bind or inp.UserInputType == bind.bind then
+                                print("Bind pressed! Mode:", bind.mode, "Expected: hold")
+                                
                                 if bind.mode == 'toggle' then
                                     bind.state = not bind.state
                                     if bind.flag then
@@ -2433,6 +2435,7 @@ function library:init()
                                     bind.indicatorValue:SetEnabled(display and not bind.noindicator)
 
                                 elseif bind.mode == 'hold' then
+                                    print("Hold mode activated!")
                                     if bind.state then return end -- prevent repeat firing
 
                                     bind.state = true
