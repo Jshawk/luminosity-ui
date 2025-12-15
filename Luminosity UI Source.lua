@@ -2445,10 +2445,9 @@ function library:init()
                             local isOurBind = inp.KeyCode == bind.bind or inp.UserInputType == bind.bind
                             if not isOurBind then return end
 
-                            mouseButtonPressed = true
-
                             -- hold: start on press
                             if bind.mode == 'hold' then
+                                if bind.state then return end
                                 bind.state = true
                                 if bind.flag then
                                     library.flags[bind.flag] = true
@@ -2471,9 +2470,6 @@ function library:init()
                         utility:Connection(inputservice.InputEnded, function(inp)
                             local isOurBind = inp.KeyCode == bind.bind or inp.UserInputType == bind.bind
                             if not isOurBind then return end
-                            if not mouseButtonPressed then return end
-                            
-                            mouseButtonPressed = false
 
                             if bind.mode == 'toggle' then
                                 bind.state = not bind.state
@@ -2486,6 +2482,7 @@ function library:init()
                                 bind.indicatorValue:SetEnabled(display and not bind.noindicator)
 
                             elseif bind.mode == 'hold' then
+                                if not bind.state then return end
                                 bind.state = false
                                 if bind.flag then
                                     library.flags[bind.flag] = false
@@ -4041,7 +4038,6 @@ function library:init()
                             local key = (table.find({Enum.UserInputType.MouseButton1, Enum.UserInputType.MouseButton2, Enum.UserInputType.MouseButton3}, inp.UserInputType) and not bind.nomouse) and inp.UserInputType or (not table.find(blacklistedKeys, inp.KeyCode) and inp.KeyCode)
                             if key then
                                 bind:SetBind(key)
-                                isMouseBind = table.find({Enum.UserInputType.MouseButton1, Enum.UserInputType.MouseButton2, Enum.UserInputType.MouseButton3}, key) ~= nil
                             end
                             bind.binding = false
                             return
@@ -4051,10 +4047,9 @@ function library:init()
                         local isOurBind = inp.KeyCode == bind.bind or inp.UserInputType == bind.bind
                         if not isOurBind then return end
 
-                        mouseButtonPressed = true
-
                         -- hold: start on press
                         if bind.mode == 'hold' then
+                            if bind.state then return end
                             bind.state = true
                             if bind.flag then
                                 library.flags[bind.flag] = true
@@ -4075,9 +4070,6 @@ function library:init()
                     utility:Connection(inputservice.InputEnded, function(inp)
                         local isOurBind = inp.KeyCode == bind.bind or inp.UserInputType == bind.bind
                         if not isOurBind then return end
-                        if not mouseButtonPressed then return end
-                        
-                        mouseButtonPressed = false
 
                         if bind.mode == 'toggle' then
                             bind.state = not bind.state
@@ -4088,6 +4080,7 @@ function library:init()
                             bind.indicatorValue:SetEnabled(bind.state and not bind.noindicator)
 
                         elseif bind.mode == 'hold' then
+                            if not bind.state then return end
                             bind.state = false
                             if bind.flag then
                                 library.flags[bind.flag] = false
