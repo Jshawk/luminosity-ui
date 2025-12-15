@@ -4494,7 +4494,7 @@ function library:init()
         self.watermark = {
             objects = {};
             text = {
-                {"Luminosity.wtf", true},
+                {"Luminosity", true},
                 {"V"..getgenv().Config.Version, true},
                 {getgenv().luaguardvars.DiscordName, true},
                 {'0 fps', true},
@@ -4624,12 +4624,9 @@ function library:CreateSettingsTab(menu)
     local configSection = settingsTab:AddSection('Config', 2);
     local mainSection = settingsTab:AddSection('Main', 1);
     local creditsSection = settingsTab:AddSection('Credits', 2);
-    creditsSection:AddSeparator({text = 'Owners/Developers'});
-    creditsSection:AddText({text = "xz#1111"})
-    creditsSection:AddText({text = "goof#1000"})
-    creditsSection:AddSeparator({text = 'Helpers'});
-    creditsSection:AddText({text = "encode#9999"})
-    creditsSection:AddText({text = "Vault#5434"})
+    creditsSection:AddSeparator({text = 'Lead Developer'});
+    creditsSection:AddText({text = "Jshawk"})
+
 
 
     configSection:AddBox({text = 'Config Name', flag = 'configinput'})
@@ -4767,3 +4764,4 @@ end
 
 getgenv().library = library
 return library
+
