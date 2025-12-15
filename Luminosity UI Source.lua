@@ -2477,7 +2477,7 @@ function library:init()
                         end)
 
                         utility:Connection(inputservice.InputEnded, function(inp)
-                            if bind.mode == 'hold' then
+                            if bind.mode ~= 'hold' then
                                 return
                             end
 
