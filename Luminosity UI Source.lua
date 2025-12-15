@@ -1,5 +1,5 @@
 --[[
-Octohook ui lib Luminosity version
+Octohook ui lib informant version
 Developed by liam#4567
 Edited by xz#1111
 ]]
@@ -103,7 +103,7 @@ library.themes = {
         }
     },
     {
-        name = 'Luminosity_V1',
+        name = 'Informant_V1',
         theme = {
             ['Accent']                    = fromrgb(103,89,179);
             ['Background']                = fromrgb(22,22,31);
@@ -2392,161 +2392,97 @@ function library:init()
                         end
                         ----------------------
     
-                        local c
-                        function bind:SetBind(keybind)
-                            if c then
-                                c:Disconnect();
-                                if bind.flag then
-                                    library.flags[bind.flag] = false;
-                                end
-                                bind.callback(false);
-                            end
-                            local keyName = 'NONE'
-                            self.bind = (keybind and keybind) or keybind or self.bind
-                            if self.bind == Enum.KeyCode.Backspace then
-                                self.bind = 'none';
-                                bind.state = true
-                                if bind.flag then
-                                    library.flags[bind.flag] = bind.state;
-                                end
-                                self.callback(true)
-                                local display = bind.state; if bind.invertindicator then display = not bind.state; end
-                                bind.indicatorValue:SetEnabled(display and not bind.noindicator);
-                            else
-                                keyName = keyNames[keybind] or keybind.Name or keybind
-                            end
-                            if self.bind ~= 'none' then
-                                bind.state = false
-                                if bind.flag then
-                                    library.flags[bind.flag] = bind.state;
-                                end
-                                self.callback(false)
-                                local display = bind.state; if bind.invertindicator then display = not bind.state; end
-                                bind.indicatorValue:SetEnabled(display and not bind.noindicator);
-                            end
-                            self.keycallback(self.bind);
-                            self:SetKeyText(keyName:upper());
-                            self.indicatorValue:SetKey((self.text == nil or self.text == '') and (self.flag == nil and 'unknown' or self.flag) or self.text); -- this is so dumb
-                            self.indicatorValue:SetValue('['..keyName:upper()..']');
-                            if self.bind == 'none' then
-                                self.indicatorValue:SetValue('[Always]');
-                            end
-                            self.objects.keyText.ThemeColor = self.objects.holder.Hover and 'Accent' or 'Option Text 3';
-                        end
-    
-                        function bind:SetKeyText(str)
-                            str = tostring(str);
-                            self.objects.keyText.Text = '['..str..']';
-                            self.objects.keyText.Position = newUDim2(0, 2, 0, 2);
-                            self.objects.holder.Size = newUDim2(0,self.objects.keyText.TextBounds.X+2,0,17)
-                            toggle:UpdateOptions();
-                        end
-    
+                        local holdingConnection
+
                         local holdingConnection
 
                         utility:Connection(inputservice.InputBegan, function(inp)
-                        if inputservice:GetFocusedTextBox() then
-                            return
-                        end
+                            if inputservice:GetFocusedTextBox() then
+                                return
+                            end
 
-                        -- binding a new key
-                        if bind.binding then
-                        local key = (table.find(
-                            {Enum.UserInputType.MouseButton1, Enum.UserInputType.MouseButton2, Enum.UserInputType.MouseButton3},
-                            inp.UserInputType) and not bind.nomouse) and inp.UserInputType
-                            bind:SetBind(key or ((not table.find(blacklistedKeys, inp.KeyCode)) and inp.KeyCode))
-                            bind.binding = false
-                            return
-                        end
+                            -- assigning a new key
+                            if bind.binding then
+                                local key =
+                                    (table.find(
+                                        {Enum.UserInputType.MouseButton1, Enum.UserInputType.MouseButton2, Enum.UserInputType.MouseButton3},
+                                        inp.UserInputType
+                                    ) and not bind.nomouse) and inp.UserInputType
+                                    or (not table.find(blacklistedKeys, inp.KeyCode) and inp.KeyCode)
 
-                        -- "Always" bind
-                        if bind.bind == "none" then
-                        bind.state = true
-                        if bind.flag then
-                            library.flags[bind.flag] = true
-                        end
-                        if bind.callback then
-                            bind.callback(true)
-                        end
-                        local display = bind.state
-                        if bind.invertindicator then display = not bind.state end
+                                if key then
+                                    bind:SetBind(key)
+                                end
+
+                                bind.binding = false
+                                return
+                            end
+
+                            -- pressed the bind
+                            if inp.KeyCode == bind.bind or inp.UserInputType == bind.bind then
+                                if bind.mode == 'toggle' then
+                                    bind.state = not bind.state
+                                    if bind.flag then
+                                        library.flags[bind.flag] = bind.state
+                                    end
+
+                                    bind.callback(bind.state)
+
+                                    local display = bind.state
+                                    if bind.invertindicator then display = not display end
+                                    bind.indicatorValue:SetEnabled(display and not bind.noindicator)
+
+                                elseif bind.mode == 'hold' then
+                                    if bind.state then return end -- prevent repeat firing
+
+                                    bind.state = true
+                                    if bind.flag then
+                                        library.flags[bind.flag] = true
+                                    end
+
+                                    bind.callback(true)
+
+                                    local display = true
+                                    if bind.invertindicator then display = false end
+                                    bind.indicatorValue:SetEnabled(display and not bind.noindicator)
+
+                                    holdingConnection = utility:Connection(runservice.RenderStepped, function()
+                                        bind.callback(true)
+                                    end)
+                                end
+                            end
+                        end)
+
+                        utility:Connection(inputservice.InputEnded, function(inp)
+                            if bind.mode ~= 'hold' then
+                                return
+                            end
+
+                            if inp.KeyCode ~= bind.bind and inp.UserInputType ~= bind.bind then
+                                return
+                            end
+
+                            if not bind.state then
+                                return
+                            end
+
+                            bind.state = false
+                            if bind.flag then
+                                library.flags[bind.flag] = false
+                            end
+
+                            if holdingConnection then
+                                holdingConnection:Disconnect()
+                                holdingConnection = nil
+                            end
+
+                            bind.callback(false)
+
+                            local display = false
+                            if bind.invertindicator then display = true end
                             bind.indicatorValue:SetEnabled(display and not bind.noindicator)
-                            return
-                        end
+                        end)
 
-                        -- pressed the bind
-                        if (inp.KeyCode == bind.bind or inp.UserInputType == bind.bind) then
-                        if bind.mode == "toggle" then
-                            bind.state = not bind.state
-                        if bind.flag then
-                            library.flags[bind.flag] = bind.state
-                        end
-                        if bind.callback then
-                            bind.callback(bind.state)
-                        end
-                        local display = bind.state
-                        if bind.invertindicator then display = not bind.state end
-                            bind.indicatorValue:SetEnabled(display and not bind.noindicator)
-
-                        elseif bind.mode == "hold" then
-                        -- prevent repeat firing while key is already held
-                         if bind.state then return end
-
-                        bind.state = true
-                        if bind.flag then
-                            library.flags[bind.flag] = true
-                        end
-
-                        if bind.callback then
-                            bind.callback(true)
-                        end
-
-                        local display = true
-                        if bind.invertindicator then display = false end
-                        bind.indicatorValue:SetEnabled(display and not bind.noindicator)
-
-                        holdingConnection = utility:Connection(runservice.RenderStepped, function()
-                        if bind.callback then
-                        bind.callback(true)
-                    end
-                end)
-            end
-        end
-    end)
-
-utility:Connection(inputservice.InputEnded, function(inp)
-    if bind.mode ~= "hold" then
-        return
-    end
-
-    if inp.KeyCode ~= bind.bind and inp.UserInputType ~= bind.bind then
-        return
-    end
-
-    if not bind.state then
-        return
-    end
-
-    bind.state = false
-    if bind.flag then
-        library.flags[bind.flag] = false
-    end
-
-    if holdingConnection then
-        holdingConnection:Disconnect()
-        holdingConnection = nil
-    end
-
-    if bind.callback then
-        bind.callback(false)
-    end
-
-    local display = false
-    if bind.invertindicator then display = true end
-    bind.indicatorValue:SetEnabled(display and not bind.noindicator)
-end)
-
-    
                         tooltip(bind);
                         bind:SetBind(bind.bind);
                         self:UpdateOptions();
@@ -3956,16 +3892,16 @@ end)
 
                 -- // Keybind
                 function section:AddBind(data)
-                    local bind = {
-                        class = 'bind';
-                        flag = data.flag;
-                        text = '';
-                        tooltip = '';
-                        bind = 'none';
-                        mode = 'toggle';
-                        order = #self.options+1;
-                        callback = function() end;
-                        keycallback = function() end;
+                local bind = {
+                    class = 'bind';
+                    flag = data.flag;
+                    text = '';
+                    tooltip = '';
+                    bind = 'none';
+                    mode = 'toggle';
+                    order = #self.options+1;
+                    callback = function(state) end;
+                    keycallback = function() end;
                         indicatorValue = library.keyIndicator:AddValue({value = 'value', key = 'key', enabled = false});
                         noindicator = false;
                         state = false;
@@ -4543,7 +4479,7 @@ end)
         self.watermark = {
             objects = {};
             text = {
-                {"Luminosity", true},
+                {"informant.wtf", true},
                 {"V"..getgenv().Config.Version, true},
                 {getgenv().luaguardvars.DiscordName, true},
                 {'0 fps', true},
@@ -4673,9 +4609,12 @@ function library:CreateSettingsTab(menu)
     local configSection = settingsTab:AddSection('Config', 2);
     local mainSection = settingsTab:AddSection('Main', 1);
     local creditsSection = settingsTab:AddSection('Credits', 2);
-    creditsSection:AddSeparator({text = 'Lead Developer'});
-    creditsSection:AddText({text = "Jshawk"})
-
+    creditsSection:AddSeparator({text = 'Owners/Developers'});
+    creditsSection:AddText({text = "xz#1111"})
+    creditsSection:AddText({text = "goof#1000"})
+    creditsSection:AddSeparator({text = 'Helpers'});
+    creditsSection:AddText({text = "encode#9999"})
+    creditsSection:AddText({text = "Vault#5434"})
 
 
     configSection:AddBox({text = 'Config Name', flag = 'configinput'})
