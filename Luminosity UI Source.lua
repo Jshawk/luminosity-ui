@@ -166,7 +166,7 @@ library.themes = {
             ['Primary Text']              = fromrgb(235,235,235);
             ['Group Background']          = fromrgb(17,17,17);
             ['Selected Tab Background']   = fromrgb(17,17,17);
-            ['Unselected Tab Background'] = fromrgb(1,1,1);
+            ['Unselected Tab Background'] = fromrgb(17,17,17);
             ['Selected Tab Text']         = fromrgb(245,245,245);
             ['Unselected Tab Text']       = fromrgb(145,145,145);
             ['Section Background']        = fromrgb(17,17,17);
@@ -2467,10 +2467,6 @@ function library:init()
                                     if bind.flag then
                                         library.flags[bind.flag] = true;
                                     end
-                                    bind.indicatorValue:SetEnabled(true and not bind.noindicator);
-                                    c = utility:Connection(runservice.RenderStepped, function()
-                                        bind.callback(true);
-                                    end)
                                     bind.indicatorValue:SetEnabled((not bind.invertindicator and true or false) and not bind.noindicator);
                                     c = utility:Connection(runservice.RenderStepped, function()
                                         if bind.callback then
