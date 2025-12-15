@@ -1119,7 +1119,7 @@ function library:init()
         return indicator
     end
 
-    function library.NewWindow(data)
+    function self.NewWindow(data)
         local window = {
             title = data.title or '',
             selectedTab = nil;
@@ -1354,7 +1354,7 @@ function library:init()
 
                 objs.sat1 = utility:Draw('Image', {
                     Size = newUDim2(1,0,1,0);
-                    Data = crypt.base64decode("iVBORw0KGgoAAAANSUhEUgAAAaQAAAGkCAQAAADURZm+AAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JQAAgIMAAPn/AACA6QAAdTAAAOpgAAA6mAAAF2+SX8VGAAAAAmJLR0QA/4ePzL8AAAAJcEhZcwAACxMAAAsTAQCanBgAAAAHdElNRQflBwwSLzK3wl3KAAADrElEQVR42u3TORLCMBBFwT+6/50hMqXSZgonBN0BWCDGYPwqeSWVZPWYVHd0Pc5H86v9areu4Sz9u7XZXT/vvtZtu6dtJtYw525iGya05afnWW17ltPE8fzfTZy/yf3vmCes59xf0Sf/42l3lnvGOyyH+y/bo/X689wCPCYkEBIICYQECAmEBEICIQFCAiGBkEBIgJBASCAkEBIgJBASCAmEBAgJhARCAiEBQgIhgZAAIYGQQEggJEBIICQQEggJEBIICYQEQgKEBEICIYGQACGBkEBIICRASCAkEBIICRASCAmEBEIChARCAiGBkAAhgZBASCAkQEggJBASICQQEggJhAQICYQEQgIhAUICIYGQQEguAQgJhARCAoQEQgIhgZAAIYGQQEggJEBIICQQEggJEBIICYQEQgKEBEICIYGQACGBkEBIgJBASCAkEBIgJBASCAmEBAgJhARCAiEBQgIhgZBASICQQEggJBASICQQEggJhAQICYQEQgKEBEICIYGQACGBkEBIICRASCAkEBIICRASCAmEBEIChARCAiGBkAAhgZBASCAkQEggJBASCAkQEggJhARCAoQEQgIhgZAAIYGQQEggJEBIICQQEiAkEBIICQQEiAkEBIICYQECAmEBEIChARCAiGBkAAhgZBASCAkQEggJBASCAkQEggJhARCAoQEQgIhgZAAIYGQQEggJEBIICQQEiAkEBIICQQEiAkEBIICYQECAmEBEICIQFCAiGBkEBIgJBASCAkEBIgJBASCAmEBAgJhARCAiEBQgIhgZAAIYGQQEggJEBIICQQEggJEBIICYQEQgKEBEICIYGQACGBkEBIICRASCAkEBIgJBASCAmEBAgJhARCAiEBQgIhgZBASICQQEggJBASICQQEggJhAQICYQEQgIhAUICIYGQQEiAkEBIICQQEiAkEBIICYQECAmEBEICIQFCAiGBkEBILgEICYQEQgKEBEICIYGQACGBkEBIICRASCAkEBIICRASCAmEBEIChARCAiGBkAAhgZBASICQQEggJBASICQQEggJhAQICYQEQgIhAUICIYGQQEiAkEBIICQQEiAkEBIICYQECAmEBEIChARCAiGBkAAhgZBASCAkQEggJBASCAkQEggJhARCAoQEQgIhgZAAIYGQQEggJEBIICQQEiAkEBL8lzft9AVFFzN+ywAAACV0RVh0ZGF0ZTpjcmVhdGUAMjAyMS0wNy0xMlQxODo0Nzo1MCswMDowMIxlM90AAAAldEVYdGRhdGU6bW9kaWZ5ADIwMjEtMDctMTJUMTg6NDc6NTArMDA6MDD9OIthAAAAAElFTkSuQmCC");
+                    Data = crypt.base64decode("iVBORw0KGgoAAAANSUhEUgAAAaQAAAGkCAQAAADURZm+AAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JQAAgIMAAPn/AACA6QAAdTAAAOpgAAA6mAAAF2+SX8VGAAAAAmJLR0QA/4ePzL8AAAAJcEhZcwAACxMAAAsTAQCanBgAAAAHdElNRQflBwwSLzK3wl3KAAADrElEQVR42u3TORLCMBBFwT+6/50hMqXSZgonBN0BWCDGYPwqeSWVZPWYVHd0Pc5H86v9areu4Sz9u7XZXT/vvtZtu6dtJtYw525iGya05afnWW17ltPE8fzfTZy/yf3vmCes59xf0Sf/42l3lnvGOyyH+y/bo/X689wCPCYkEBIICYQECAmEBEICIQFCAiGBkEBIgJBASCAkEBIgJBASCAmEBAgJhARCAiEBQgIhgZAAIYGQQEggJEBIICQQEggJEBIICYQEQgKEBEICIYGQACGBkEBIICRASCAkEBIICRASCAmEBAgJhARCAiEBQgIhgZBASICQQEggJBASICQQEggJhAQICYQEQgIhAUICIYGQQEguAQgJhARCAoQEQgIhgZAAIYGQQEggJEBIICQQEggJEBIICYQEQgKEBEICIYGQACGBkEBIgJBASCAkEBIgJBASCAmEBAgJhARCAiEBQgIhgZBASICQQEggJBASICQQEggJhAQICYQEQgKEBEICIYGQACGBkEBIICRASCAkEBIICRASCAmEBEIChARCAiGBkAAhgZBASCAkQEggJBASICQQEggJhAQICYQEQgIhAUICIYGQQEiAkEBIICQQEiAkEBIICYQECAmEBEIChARCAiGBkAAhgZBASCAkQEggJBASCAkQEggJhARCAoQEQgIhgZAAIYGQQEggJEBIICQQEiAkEBIICYQECAmEBEICIQFCAiGBkEBIgJBASCAkEBIgJBASCAmEBAgJhARCAiEBQgIhgZAAIYGQQEggJEBIICQQEggJEBIICYQEQgKEBEICIYGQACGBkEBIICRASCAkEBIgJBASCAmEBAgJhARCAiEBQgIhgZBASICQQEggJBASICQQEggJhAQICYQEQgIhAUICIYGQACGBkEBIICRASCAkEBIICRASCAmEBEIChARCAiGBkAAhgZBASCAkQEggJBASCAkQEggJhAQICYQEQgIhAUICIYGQQEiAkEBIICQQEiAkEBIICYQECAmEBEICIQFCAiGBkEBILgEICYQEQgKEBEICIYGQACGBkEBIICRASCAkEBIICRASCAmEBEIChARCAiGBkAAhgZBASICQQEggJBASICQQEggJhAQICYQEQgIhAUICIYGQQEiAkEBIICQQEiAkEBIICYQECAmEBEIChARCAiGBkAAhgZBASCAkQEggJBASCAkQEggJhARCAoQEQgIhgZAAIYGQQEggJEBIICQQEiAkEBL8lzft9AVFFzN+ywAAACV0RVh0ZGF0ZTpjcmVhdGUAMjAyMS0wNy0xMlQxODo0Nzo1MCswMDowMIxlM90AAAAldEVYdGRhdGU6bW9kaWZ5ADIwMjEtMDctMTJUMTg6NDc6NTArMDA6MDD9OIthAAAAAElFTkSuQmCC");
                     ZIndex = z+3;
                     Parent = objs.mainColor;
                 })
@@ -2391,124 +2391,122 @@ function library:init()
     
                         end
                         ----------------------
-                        
-                        -- Bind Functions --
-                        local holdingConnection = nil
-
+    
+                        local c
                         function bind:SetBind(keybind)
-                            if holdingConnection then
-                                holdingConnection:Disconnect()
-                                holdingConnection = nil
+                            if c then
+                                c:Disconnect();
+                                if bind.flag then
+                                    library.flags[bind.flag] = false;
+                                end
+                                bind.callback(false);
                             end
-                            
-                            self.bind = keybind == Enum.KeyCode.Backspace and 'none' or keybind or self.bind
-                            
                             local keyName = 'NONE'
-                            if self.bind ~= 'none' then
-                                keyName = keyNames[self.bind] or self.bind.Name or tostring(self.bind)
+                            self.bind = (keybind and keybind) or keybind or self.bind
+                            if self.bind == Enum.KeyCode.Backspace then
+                                self.bind = 'none';
+                                bind.state = true
+                                if bind.flag then
+                                    library.flags[bind.flag] = bind.state;
+                                end
+                                self.callback(true)
+                                local display = bind.state; if bind.invertindicator then display = not bind.state; end
+                                bind.indicatorValue:SetEnabled(display and not bind.noindicator);
+                            else
+                                keyName = keyNames[keybind] or keybind.Name or keybind
                             end
-                            
-                            self.keycallback(self.bind)
-                            self:SetKeyText(keyName:upper())
-                            self.indicatorValue:SetKey((self.text == nil or self.text == '') and (self.flag == nil and 'unknown' or self.flag) or self.text)
-                            self.indicatorValue:SetValue('['..keyName:upper()..']')
-                            self.objects.keyText.ThemeColor = self.objects.holder.Hover and 'Accent' or 'Option Text 3'
+                            if self.bind ~= 'none' then
+                                bind.state = false
+                                if bind.flag then
+                                    library.flags[bind.flag] = bind.state;
+                                end
+                                self.callback(false)
+                                local display = bind.state; if bind.invertindicator then display = not bind.state; end
+                                bind.indicatorValue:SetEnabled(display and not bind.noindicator);
+                            end
+                            self.keycallback(self.bind);
+                            self:SetKeyText(keyName:upper());
+                            self.indicatorValue:SetKey((self.text == nil or self.text == '') and (self.flag == nil and 'unknown' or self.flag) or self.text); -- this is so dumb
+                            self.indicatorValue:SetValue('['..keyName:upper()..']');
+                            if self.bind == 'none' then
+                                self.indicatorValue:SetValue('[Always]');
+                            end
+                            self.objects.keyText.ThemeColor = self.objects.holder.Hover and 'Accent' or 'Option Text 3';
                         end
-
+    
                         function bind:SetKeyText(str)
-                            str = tostring(str)
-                            self.objects.keyText.Text = '['..str..']'
-                            self.objects.keyText.Position = newUDim2(1, -self.objects.keyText.TextBounds.X, 0, 2)
+                            str = tostring(str);
+                            self.objects.keyText.Text = '['..str..']';
+                            self.objects.keyText.Position = newUDim2(0, 2, 0, 2);
+                            self.objects.holder.Size = newUDim2(0,self.objects.keyText.TextBounds.X+2,0,17)
+                            toggle:UpdateOptions();
                         end
-
+    
                         utility:Connection(inputservice.InputBegan, function(inp)
                             if inputservice:GetFocusedTextBox() then
                                 return
-                            end
-
-                            -- assigning a new key
-                            if bind.binding then
-                                local key = (table.find(
-                                    {Enum.UserInputType.MouseButton1, Enum.UserInputType.MouseButton2, Enum.UserInputType.MouseButton3},
-                                    inp.UserInputType
-                                ) and not bind.nomouse) and inp.UserInputType or (not table.find(blacklistedKeys, inp.KeyCode) and inp.KeyCode)
-
-                                if key then
-                                    bind:SetBind(key)
-                                end
-
+                            elseif bind.binding then
+                                local key = (table.find({Enum.UserInputType.MouseButton1, Enum.UserInputType.MouseButton2, Enum.UserInputType.MouseButton3}, inp.UserInputType) and not bind.nomouse) and inp.UserInputType
+                                bind:SetBind(key or (not table.find(blacklistedKeys, inp.KeyCode)) and inp.KeyCode)
                                 bind.binding = false
-                                return
-                            end
-
-                            -- pressed the bind
-                            if inp.KeyCode == bind.bind or inp.UserInputType == bind.bind then
+                            elseif not bind.binding and self.bind == 'none' then
+                                bind.state = true
+                                library.flags[bind.flag] = bind.state
+                                local display = bind.state; if bind.invertindicator then display = not bind.state; end
+                                bind.indicatorValue:SetEnabled(display and not bind.noindicator)
+                            elseif (inp.KeyCode == bind.bind or inp.UserInputType == bind.bind) and not bind.binding then
                                 if bind.mode == 'toggle' then
                                     bind.state = not bind.state
                                     if bind.flag then
-                                        library.flags[bind.flag] = bind.state
+                                        library.flags[bind.flag] = bind.state;
                                     end
-
                                     bind.callback(bind.state)
-
-                                    local display = bind.state
-                                    if bind.invertindicator then display = not display end
-                                    bind.indicatorValue:SetEnabled(display and not bind.noindicator)
-
+                                    local display = bind.state; if bind.invertindicator then display = not bind.state; end
+                                    bind.indicatorValue:SetEnabled(display and not bind.noindicator);
                                 elseif bind.mode == 'hold' then
-                                    if bind.state then return end
-
+                                    if c then
+                                        c:Disconnect()
+                                        c = nil
+                                    end
                                     bind.state = true
                                     if bind.flag then
-                                        library.flags[bind.flag] = true
+                                        library.flags[bind.flag] = true;
                                     end
-
-                                    bind.callback(true)
-
-                                    local display = true
-                                    if bind.invertindicator then display = false end
-                                    bind.indicatorValue:SetEnabled(display and not bind.noindicator)
-
-                                    holdingConnection = utility:Connection(runservice.RenderStepped, function()
-                                        bind.callback(true)
+                                    bind.indicatorValue:SetEnabled((not bind.invertindicator and true or false) and not bind.noindicator);
+                                    c = utility:Connection(runservice.RenderStepped, function()
+                                        if bind.callback then
+                                            bind.callback(true);
+                                        end
                                     end)
                                 end
                             end
                         end)
-
+    
                         utility:Connection(inputservice.InputEnded, function(inp)
                             if bind.mode ~= 'hold' then
                                 return
                             end
-
-                            if inp.KeyCode ~= bind.bind and inp.UserInputType ~= bind.bind then
-                                return
+                            if bind.bind ~= 'none' then
+                                if inp.KeyCode == bind.bind or inp.UserInputType == bind.bind then
+                                    if c then
+                                        c:Disconnect();
+                                        c = nil
+                                        bind.state = false
+                                        if bind.flag then
+                                            library.flags[bind.flag] = false;
+                                        end
+                                        if bind.callback then
+                                            bind.callback(false);
+                                        end
+                                        bind.indicatorValue:SetEnabled(bind.invertindicator and true or false);
+                                    end
+                                end
                             end
-
-                            if not bind.state then
-                                return
-                            end
-
-                            bind.state = false
-                            if bind.flag then
-                                library.flags[bind.flag] = false
-                            end
-
-                            if holdingConnection then
-                                holdingConnection:Disconnect()
-                                holdingConnection = nil
-                            end
-
-                            bind.callback(false)
-
-                            local display = false
-                            if bind.invertindicator then display = true end
-                            bind.indicatorValue:SetEnabled(display and not bind.noindicator)
                         end)
-
-                        tooltip(bind)
-                        bind:SetBind(bind.bind)
-                        self:UpdateOptions()
+    
+                        tooltip(bind);
+                        bind:SetBind(bind.bind);
+                        self:UpdateOptions();
                         return bind
                     end
 
@@ -3915,16 +3913,16 @@ function library:init()
 
                 -- // Keybind
                 function section:AddBind(data)
-                local bind = {
-                    class = 'bind';
-                    flag = data.flag;
-                    text = '';
-                    tooltip = '';
-                    bind = 'none';
-                    mode = 'toggle';
-                    order = #self.options+1;
-                    callback = function(state) end;
-                    keycallback = function() end;
+                    local bind = {
+                        class = 'bind';
+                        flag = data.flag;
+                        text = '';
+                        tooltip = '';
+                        bind = 'none';
+                        mode = 'toggle';
+                        order = #self.options+1;
+                        callback = function() end;
+                        keycallback = function() end;
                         indicatorValue = library.keyIndicator:AddValue({value = 'value', key = 'key', enabled = false});
                         noindicator = false;
                         state = false;
