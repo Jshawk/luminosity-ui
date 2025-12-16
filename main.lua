@@ -48,7 +48,17 @@ local ESPObjects = {}
 local CrosshairObjects = {}
 local AimbotTarget = nil
 local IsAimKeyHeld = false
+local SilentAimData = nil
 local IsSilentAimKeyHeld = false
+local SilentAimActiveIndicator = false -- UI/Debug indicator for active silent aim
+local SilentAimLastDebug = "" -- Last debug message for silent aim
+local SilentAimPrevActive = false
+local SilentAimLastNotify = nil
+
+-- Throttle spammy lock prints
+local SilentAimLastLockKey = nil
+local SilentAimLastLockTime = 0
+local SilentAimLockThrottle = 0.75 -- seconds (only print identical lock attempts after this interval)
 local Connections = {}
 local RGBHue = 0
 local OriginalAmbient = Lighting.Ambient
@@ -330,7 +340,7 @@ CrosshairObjects.OutlineV.Visible = false
 --// Create Window
 local Window = library.NewWindow({
     title = "Luminosity Hub v2.0 - Enhanced",
-    size = UDim2.new(0, 600, 0, 650)
+    size = UDim2.new(0, 600, 0, 675),
 })
 
 --// Create Tabs
@@ -532,6 +542,27 @@ AimbotSections.FOV:AddSlider({
     end
 })
 
+-- Debug/Status indicator for Silent Aim (AddLabel unsupported; use keyIndicator instead)
+library.silentDebugIndicator = library.keyIndicator:AddValue({ key = 'Silent Aim :', value = 'Inactive', enabled = true })
+-- Keep a flag present so existing logic that checks the flag still runs
+library.flags["Silent_Debug_Label"] = library.flags["Silent_Debug_Label"] or true
+
+-- Expose a debug toggle to force silent aim active for testing
+AimbotSections.Silent:AddToggle({
+    enabled = true,
+    text = "Force Silent Aim (Testing)",
+    flag = "Silent_Force_Active",
+    tooltip = "Force silent aim to stay active regardless of keys (for testing)",
+})
+
+-- Option: Use Remote Fallback (attempt to intercept remote events/raycast calls)
+AimbotSections.Silent:AddToggle({
+    enabled = true,
+    text = "Remote Fallback",
+    flag = "Silent_Remote_Fallback",
+    tooltip = "Try to override common remote/raycast targets if Mouse.Hit is not used",
+})
+
 --// Silent Aim Section
 AimbotSections.Silent:AddToggle({
     enabled = true,
@@ -548,6 +579,20 @@ AimbotSections.Silent:AddBind({
     mode = "hold",
     bind = Enum.KeyCode.C,
     tooltip = "Hold for silent aim",
+})
+
+AimbotSections.Silent:AddToggle({
+    enabled = true,
+    text = "Use Aimbot Target",
+    flag = "Silent_Use_Aimbot_Target",
+    tooltip = "When enabled, Silent Aim uses the Aimbot's selected target and FOV settings",
+})
+
+AimbotSections.Silent:AddToggle({
+    enabled = true,
+    text = "Aggressive Remote Injection",
+    flag = "Silent_Aggressive_Remote",
+    tooltip = "Try more aggressive heuristics to inject target into remote calls (may affect other remotes)",
 })
 
 AimbotSections.Silent:AddSeparator({text = "Accuracy Settings"})
@@ -574,6 +619,80 @@ AimbotSections.Silent:AddSlider({
     tooltip = "Chance to hit target with silent aim",
 })
 
+AimbotSections.Silent:AddButton({
+    text = "Log Silent Aim Data",
+    tooltip = "Print current SilentAimData to console",
+    callback = function()
+        if SilentAimData and SilentAimData.player then
+            print(string.format("[SilentAim] Target=%s Part=%s Pos=%.2f,%.2f,%.2f", SilentAimData.player.Name, SilentAimData.part and SilentAimData.part.Name or "nil", SilentAimData.position.X or 0, SilentAimData.position.Y or 0, SilentAimData.position.Z or 0))
+            library:SendNotification("SilentAim locked: " .. SilentAimData.player.Name, 3, Color3.fromRGB(0,255,0))
+        else
+            print("[SilentAim] No target currently")
+            library:SendNotification("SilentAim: no target", 3, Color3.fromRGB(255,100,100))
+        end
+    end
+})
+
+-- Debug: Force replace next shots via UI
+AimbotSections.Silent:AddButton({
+    text = "Force Replace Next Shots (Debug)",
+    tooltip = "Temporarily force replacements on next remote/namecall args (debug)",
+    callback = function()
+        ForceReplaceNextShots(12)
+    end
+})
+
+-- Debug: Dump namecalls to discover what the game actually calls
+AimbotSections.Silent:AddButton({
+    text = "Dump Namecalls (Debug)",
+    tooltip = "Log the next 200 namecalls (method + arg types) to help identify shot APIs",
+    callback = function()
+        FullNamecallDump = 200
+        pcall(function() if library and library.SendNotification then library:SendNotification('Namecall dump enabled for next 200 calls', 3, Color3.fromRGB(255,200,0)) end end)
+        print('[SilentAim] Namecall dump enabled for next 200 calls')
+    end
+})
+
+-- Debug: Print a stack trace on next click and boost capture counters
+AimbotSections.Silent:AddButton({
+    text = "Click Stack (Debug)",
+    tooltip = "Enable stack trace and stronger dumps on next Mouse.Button1Down",
+    callback = function()
+        FullNamecallDump = math.max(FullNamecallDump, 200)
+        VerboseNamecallCapture = math.max(VerboseNamecallCapture, 200)
+        ForceReplaceCount = math.max(ForceReplaceCount, 12)
+        pcall(function() print('[SilentAim] Click Stack enabled: next Mouse.Button1Down will print stack and dump namecalls') end)
+    end
+})
+
+-- Debug: Scan all remotes in the game (aggressive, may be heavy)
+AimbotSections.Silent:AddButton({
+    text = "Scan All Remotes (Debug)",
+    tooltip = "Scan entire game for RemoteEvent/RemoteFunction and wrap them for silent aim testing",
+    callback = function()
+        local found = 0
+        for _, obj in pairs(game:GetDescendants()) do
+            if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
+                pcall(WrapRemote, obj)
+                found = found + 1
+            end
+        end
+        pcall(function() if library and library.SendNotification then library:SendNotification('Scanned game for remotes, found: '..tostring(found), 3, Color3.fromRGB(255,200,0)) end end)
+        print('[SilentAim] ScanAllRemotes found: '..tostring(found))
+    end
+})
+
+-- Debug: Dump FireServer/InvokeServer namecalls (detailed captures)
+AimbotSections.Silent:AddButton({
+    text = "Dump FireServer (Debug)",
+    tooltip = "Log detailed FireServer/InvokeServer calls for the next 200 calls",
+    callback = function()
+        VerboseNamecallCapture = 200
+        pcall(function() if library and library.SendNotification then library:SendNotification('Detailed FireServer/InvokeServer dump enabled for next 200 calls', 3, Color3.fromRGB(255,200,0)) end end)
+        print('[SilentAim] FireServer dump enabled for next 200 calls')
+    end
+})
+
 
 --[[ ═══════════════════════════════════════════════════════════════
                         ESP/VISUALS TAB
@@ -582,7 +701,7 @@ AimbotSections.Silent:AddSlider({
 --// Create Sections
 local VisualsSections = {
     ESP = tabs.Visuals:AddSection("Player ESP", 1),
-    World = tabs.Visuals:AddSection("World", 1),
+    World = tabs.Visuals:AddSection("World", 2),
     Crosshair = tabs.Visuals:AddSection("Crosshair", 2),
 }
 
@@ -1281,6 +1400,7 @@ local function GetAimbotTarget()
     local camera = Camera
     local screenCenter = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
     local mousePos = UserInputService:GetMouseLocation()
+
     local thirdPerson = library.flags["Aimbot_Third_Person"]
     local aimOrigin = thirdPerson and mousePos or screenCenter
     
@@ -1340,7 +1460,17 @@ local function GetAimbotTarget()
                         local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
                         if myRoot then
                             local ray = Ray.new(myRoot.Position, (targetPart.Position - myRoot.Position).Unit * worldDistance)
-                            local hit = Workspace:FindPartOnRayWithIgnoreList(ray, {LocalPlayer.Character, camera})
+                            local hit = nil
+                            local ok, res = pcall(function() return Workspace:FindPartOnRayWithIgnoreList(ray, {LocalPlayer.Character, camera}) end)
+                            if ok then hit = res end
+                            if not hit then
+                                local ok2, res2 = pcall(function() return Workspace:FindPartOnRay(ray) end)
+                                if ok2 then hit = res2 end
+                            end
+                            if not hit then
+                                local ok3, res3 = pcall(function() return Workspace:Raycast(ray.Origin, ray.Direction) end)
+                                if ok3 and res3 and res3.Instance then hit = res3.Instance end
+                            end
                             if hit and not hit:IsDescendantOf(character) then
                                 continue
                             end
@@ -1369,6 +1499,121 @@ local function GetAimbotTarget()
     return closestPlayer
 end
 
+--// Update Silent Aim Target Selection
+local function UpdateSilentAimTarget()
+    -- Basic checks
+    if not library.flags["Silent_Aim_Enabled"] then
+        SilentAimData = nil
+        SilentAimActiveIndicator = false
+        SilentAimLastDebug = "Silent Aim disabled"
+        return
+    end
+
+    if not IsSilentAimKeyHeld then
+        SilentAimData = nil
+        SilentAimActiveIndicator = false
+        SilentAimLastDebug = "Silent key not held"
+        return
+    end
+
+    -- Optionally use the Aimbot's selected target (uses same FOV/priorities)
+    local target = nil
+    if library.flags["Silent_Use_Aimbot_Target"] then
+        if AimbotTarget and AimbotTarget.Character then
+            local partName = library.flags["Aimbot_Part"] or "Head"
+            local char = AimbotTarget.Character
+            if partName == "Random" then
+                target = { player = AimbotTarget, part = GetRandomPart(char) }
+            elseif partName == "Closest" then
+                target = { player = AimbotTarget, part = GetClosestPart(char) }
+            else
+                target = { player = AimbotTarget, part = char:FindFirstChild(partName) }
+            end
+            if not (target and target.part) then
+                SilentAimData = nil
+                SilentAimActiveIndicator = false
+                SilentAimLastDebug = "Aimbot target missing part"
+                return
+            end
+        else
+            SilentAimData = nil
+            SilentAimActiveIndicator = false
+            SilentAimLastDebug = "Aimbot target unavailable"
+            return
+        end
+    else
+        -- Default behaviour (self-contained selection)
+        target = GetAimbotTarget()
+    end
+
+    -- Activation chance
+    if math.random(1, 100) > (library.flags["Silent_Aim_Chance"] or 100) then
+        SilentAimData = nil
+        SilentAimActiveIndicator = false
+        SilentAimLastDebug = "Activation chance failed"
+        return
+    end
+
+    local target = GetAimbotTarget()
+    if not target then
+        SilentAimData = nil
+        SilentAimActiveIndicator = false
+        SilentAimLastDebug = "No valid target"
+        return
+    end
+
+    -- Hit chance
+    if math.random(1, 100) > (library.flags["Silent_Hit_Chance"] or 100) then
+        SilentAimData = nil
+        SilentAimActiveIndicator = false
+        SilentAimLastDebug = "Hit chance failed"
+        return
+    end
+
+    -- Debug print for target lock (throttled)
+    pcall(function()
+        local key = tostring(target.player and target.player.Name or 'nil') .. ':' .. tostring(target.part and target.part.Name or 'nil')
+        local now = tick()
+        if key ~= SilentAimLastLockKey or (now - (SilentAimLastLockTime or 0)) > SilentAimLockThrottle then
+            SilentAimLastLockKey = key
+            SilentAimLastLockTime = now
+            print(string.format('[SilentAim] Lock Attempt: %s part: %s', tostring(target.player and target.player.Name or 'nil'), tostring(target.part and target.part.Name or 'nil')))
+        end
+    end)
+
+    local targetPart = target.part
+    if not targetPart then
+        SilentAimData = nil
+        SilentAimActiveIndicator = false
+        SilentAimLastDebug = "Target part missing"
+        return
+    end
+
+    local predictedPosition = targetPart.Position
+    local parent = targetPart.Parent
+
+    -- Prefer HumanoidRootPart velocity for prediction when available
+    if library.flags.Aimbot_Prediction then
+        local hrp = parent and parent:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            local velocity = hrp.AssemblyLinearVelocity or Vector3.new()
+            local predictionMultiplier = library.flags.Aimbot_Prediction_Velocity or 0.165
+            predictedPosition = predictedPosition + (velocity * predictionMultiplier)
+        end
+    end
+
+    SilentAimData = {
+        player = target.player,
+        part = targetPart,
+        position = predictedPosition,
+        timestamp = tick(),
+    }
+
+    SilentAimActiveIndicator = true
+    SilentAimLastDebug = string.format("Locked on %s at (%.2f, %.2f, %.2f)", target.player.Name, predictedPosition.X, predictedPosition.Y, predictedPosition.Z)
+end
+
+
 --// Update Player List for Teleport
 local function UpdateTeleportList()
     if library.options.Teleport_Player then
@@ -1379,6 +1624,989 @@ local function UpdateTeleportList()
             end
         end
     end
+end
+
+--// Silent Aim Mouse Hook (safe/resilient)
+local success, rawMeta = pcall(getrawmetatable, game)
+if success and rawMeta then
+    local oldIndex = rawMeta.__index
+    setreadonly(rawMeta, false)
+    rawMeta.__index = function(self, key)
+        -- Ensure we only override mouse properties when not called by our script
+        if self == Mouse and (key == "Hit" or key == "Target") and not checkcaller() then
+            if SilentAimData and SilentAimData.part and SilentAimData.position then
+                SilentAimLastDebug = SilentAimLastDebug or "Overriding mouse property"
+                -- Print minimally to console for debugging (pcall to avoid errors)
+                pcall(function()
+                    -- Small, infrequent print to avoid spam; only when timestamp is recent
+                    if SilentAimData.timestamp and tick() - SilentAimData.timestamp < 0.2 then
+                        print("[SilentAim] Overriding Mouse." .. key .. " -> " .. tostring(SilentAimData.part.Name))
+                    end
+                end)
+
+                if key == "Hit" then
+                    return CFrame.new(SilentAimData.position)
+                elseif key == "Target" then
+                    return SilentAimData.part
+                end
+            end
+        end
+
+        if type(oldIndex) == "function" then
+            return oldIndex(self, key)
+        end
+
+        return oldIndex[key]
+    end
+    setreadonly(rawMeta, true)
+else
+    warn("Silent Aim: getrawmetatable unavailable or failed")
+end
+
+--// Remote fallback for games that don't use Mouse.Hit/Target
+local RemoteFallbackEnabled = false
+local RemoteFallbackWrapped = {}
+local RemoteFallbackOriginals = {}
+local RemoteFallbackLogs = {}
+local remoteScanConn = nil
+
+-- Debug: Force replace next N remote/namecall args (one-shot)
+local ForceReplaceCount = 0
+local function ForceReplaceNextShots(count)
+    ForceReplaceCount = tonumber(count) or 12
+    pcall(function()
+        if library and library.SendNotification then
+            library:SendNotification('Force replace enabled for next '..tostring(ForceReplaceCount)..' shots', 2, Color3.fromRGB(255,200,0))
+        end
+    end)
+    print('[SilentAim] ForceReplace enabled for next ' .. tostring(ForceReplaceCount) .. ' shots')
+end
+
+local function WrapRemote(remote)
+    if not remote or RemoteFallbackWrapped[remote] then return end
+    RemoteFallbackWrapped[remote] = true
+    RemoteFallbackOriginals[remote] = {
+        FireServer = remote.FireServer,
+        InvokeServer = remote.InvokeServer,
+    }
+
+    if type(remote.FireServer) == "function" then
+        remote.FireServer = function(self, ...)
+            local args = { ... }
+
+            -- Prepare a small summary and a more detailed summary of original arguments for debugging
+            local function vec3str(v) return string.format('%.2f,%.2f,%.2f', v.X, v.Y, v.Z) end
+            local function cfrstr(cf) local p = cf.Position; return string.format('%.2f,%.2f,%.2f', p.X, p.Y, p.Z) end
+            local function dumpTable(t, limit)
+                local parts = {}
+                for k, val in pairs(t) do
+                    if #parts >= (limit or 8) then break end
+                    local tv = typeof(val)
+                    local repr = tv
+                    if tv == 'Vector3' then repr = repr .. ':' .. vec3str(val)
+                    elseif tv == 'CFrame' then repr = repr .. ':' .. cfrstr(val)
+                    else repr = repr .. ':' .. tostring(val)
+                    end
+                    table.insert(parts, tostring(k) .. '=' .. repr)
+                end
+                return '{' .. table.concat(parts, ',') .. '}'
+            end
+
+            local origSummary = {}
+            local detailedSummary = {}
+            for i, v in ipairs(args) do
+                local tv = typeof(v)
+                table.insert(origSummary, tv)
+                if tv == 'Vector3' then
+                    table.insert(detailedSummary, string.format('[%d]=Vector3(%s)', i, vec3str(v)))
+                elseif tv == 'CFrame' then
+                    table.insert(detailedSummary, string.format('[%d]=CFrame(%s)', i, cfrstr(v)))
+                elseif tv == 'table' then
+                    table.insert(detailedSummary, string.format('[%d]=table%s', i, dumpTable(v, 12)))
+                else
+                    table.insert(detailedSummary, string.format('[%d]=%s(%s)', i, tv, tostring(v)))
+                end
+            end
+
+            -- Throttle logs per-remote to avoid spamming
+            RemoteFallbackLogs[remote] = RemoteFallbackLogs[remote] or { count = 0, last = 0 }
+            local rl = RemoteFallbackLogs[remote]
+
+            local replaced = false
+            if SilentAimData and SilentAimData.position and SilentAimData.part then
+                local i = 1
+                while i <= #args do
+                    local v = args[i]
+                    local t = typeof(v)
+
+                    -- Handle tables with Origin/Position/Direction fields
+                    if t == 'table' then
+                        local changed = false
+                        -- normalize key lookup (case-insensitive common keys)
+                        local function hasKey(tbl, ...)
+                            for _, key in ipairs({...}) do
+                                if tbl[key] ~= nil then return key end
+                            end
+                            return nil
+                        end
+
+                        local originKey = hasKey(v, 'Origin', 'origin', 'Position', 'position')
+                        local dirKey = hasKey(v, 'Direction', 'direction')
+
+                        if originKey then
+                            v[originKey] = SilentAimData.position
+                            changed = true
+                        end
+
+                        if dirKey then
+                            local oldDir = v[dirKey]
+                            if typeof(oldDir) == 'Vector3' then
+                                local origin = v[originKey] or SilentAimData.position
+                                local newDir = (SilentAimData.position - origin)
+                                if newDir.Magnitude > 0 then
+                                    -- preserve magnitude of oldDir if available
+                                    local mag = oldDir.Magnitude or 1
+                                    v[dirKey] = newDir.Unit * mag
+                                else
+                                    v[dirKey] = Vector3.new(0,0,0)
+                                end
+                                changed = true
+                            end
+
+                            -- if direction is Vector2-based, convert similarly
+                            if typeof(oldDir) == 'Vector2' then
+                                local origin = v[originKey] or SilentAimData.position
+                                local screenPos = Camera:WorldToViewportPoint(SilentAimData.position)
+                                v[dirKey] = Vector2.new(screenPos.X, screenPos.Y)
+                                changed = true
+                            end
+                        end
+
+                        if changed then replaced = true end
+
+                    elseif t == 'Vector3' then
+                        local nextv = args[i+1]
+                        if nextv and typeof(nextv) == 'Vector3' then
+                            -- origin + direction pair
+                            local originalOrigin = args[i]
+                            local originalDir = args[i+1]
+                            local newDir = (SilentAimData.position - originalOrigin)
+                            if newDir.Magnitude > 0 then
+                                local mag = (typeof(originalDir) == 'Vector3' and originalDir.Magnitude) or newDir.Magnitude
+                                args[i+1] = newDir.Unit * mag
+                            else
+                                args[i+1] = Vector3.new(0,0,0)
+                            end
+                            replaced = true
+                            i = i + 2
+                        else
+                            -- single Vector3 -> replace with target position
+                            args[i] = SilentAimData.position
+                            replaced = true
+                            i = i + 1
+                        end
+
+                    elseif t == 'CFrame' then
+                        args[i] = CFrame.new(SilentAimData.position)
+                        replaced = true
+                    elseif t == 'Ray' then
+                        local dir = v.Direction or Vector3.new(0,0,0)
+                        args[i] = Ray.new(SilentAimData.position, dir)
+                        replaced = true
+                    elseif t == 'Vector2' then
+                        -- remote passing screen position; convert target world pos to screen coords
+                        local screenPos = Camera:WorldToViewportPoint(SilentAimData.position)
+                        args[i] = Vector2.new(screenPos.X, screenPos.Y)
+                        replaced = true
+                        i = i + 1
+                    elseif t == 'number' then
+                        local nextn = args[i+1]
+                        if type(nextn) == 'number' then
+                            -- Treat as possible screen (x,y) pair if values are within viewport range
+                            local vx = math.abs(args[i]) <= (Camera.ViewportSize.X + 1) and math.abs(nextn) <= (Camera.ViewportSize.Y + 1)
+                            if vx then
+                                local screenPos = Camera:WorldToViewportPoint(SilentAimData.position)
+                                args[i] = screenPos.X
+                                args[i+1] = screenPos.Y
+                                replaced = true
+                                i = i + 2
+                            else
+                                i = i + 1
+                            end
+                        else
+                            i = i + 1
+                        end
+                    elseif t == 'Instance' and v:IsA('BasePart') then
+                        args[i] = SilentAimData.part
+                        replaced = true
+                    end
+
+                end
+
+                -- Aggressive fallback heuristics (if enabled)
+                if (not replaced) and library.flags["Silent_Aggressive_Remote"] then
+                    for j = 1, #args do
+                        -- origin(Vector3), distance(number) -> replace distance into a direction vector
+                        if typeof(args[j]) == 'Vector3' and typeof(args[j+1]) == 'number' then
+                            local origin = args[j]
+                            local distance = args[j+1]
+                            local newDir = (SilentAimData.position - origin)
+                            if newDir.Magnitude > 0 then
+                                args[j+1] = newDir.Unit * (distance or newDir.Magnitude)
+                                replaced = true
+                                break
+                            end
+                        end
+
+                        -- [origin, dir, speed] style tables
+                        if type(args[j]) == 'table' and #args[j] >= 2 and typeof(args[j][1]) == 'Vector3' and typeof(args[j][2]) == 'Vector3' then
+                            local origin = args[j][1]
+                            local dir = args[j][2]
+                            local newDir = (SilentAimData.position - origin)
+                            if newDir.Magnitude > 0 then
+                                args[j][2] = newDir.Unit * (dir.Magnitude or newDir.Magnitude)
+                                replaced = true
+                                break
+                            end
+                        end
+                    end
+                end
+
+                -- Send a short in-game notification when a replacement occurs (throttled)
+                if replaced and (tick() - (rl.lastNotification or 0)) > 0.75 then
+                    rl.lastNotification = tick()
+                    pcall(function()
+                        if library and library.SendNotification then
+                            library:SendNotification('SilentAim injected into '..tostring(remote.Name or remote.ClassName), 1, Color3.fromRGB(0,255,0))
+                        end
+                    end)
+                end
+
+                if (tick() - rl.last) > 1 and rl.count < 20 then
+                    rl.count = rl.count + 1; rl.last = tick()
+                    pcall(function()
+                        print(string.format('[SilentAim][RemoteDebug] %s FireServer called. Silent target=%s. Orig=%s Replaced=%s\nStack: %s', tostring(remote.Name or remote.ClassName), tostring(SilentAimData.player and SilentAimData.player.Name or 'nil'), table.concat(detailedSummary, ', '), tostring(replaced), debug.traceback('',2)))
+                    end)
+                end
+            end
+
+                -- Force-replace heuristic for quick debugging (one-shot)
+                if ForceReplaceCount and ForceReplaceCount > 0 and SilentAimData and SilentAimData.position then
+                    local f_replaced = false
+                    for idx = 1, #args do
+                        local vt = typeof(args[idx])
+                        if vt == 'Vector3' then
+                            args[idx] = SilentAimData.position; f_replaced = true
+                        elseif vt == 'CFrame' then
+                            args[idx] = CFrame.new(SilentAimData.position); f_replaced = true
+                        elseif vt == 'Vector2' then
+                            local sp = Camera:WorldToViewportPoint(SilentAimData.position)
+                            args[idx] = Vector2.new(sp.X, sp.Y); f_replaced = true
+                        elseif vt == 'number' and type(args[idx+1]) == 'number' then
+                            local sp = Camera:WorldToViewportPoint(SilentAimData.position)
+                            args[idx] = sp.X; args[idx+1] = sp.Y; f_replaced = true
+                        elseif vt == 'string' and SilentAimData.player and type(args[idx])=='string' and args[idx]:lower() == (SilentAimData.player.Name or ''):lower() then
+                            args[idx] = SilentAimData.player; f_replaced = true
+                        elseif vt == 'Instance' and args[idx]:IsA('BasePart') then
+                            args[idx] = SilentAimData.part; f_replaced = true
+                        end
+                    end
+                    if f_replaced then
+                        replaced = true
+                        ForceReplaceCount = math.max(ForceReplaceCount - 1, 0)
+                        print(string.format('[SilentAim][ForceReplace] %s FireServer forced replacement. Remaining=%d', tostring(remote.Name or remote.ClassName), ForceReplaceCount))
+                    end
+                end
+
+                RemoteFallbackLogs[remote] = rl
+
+                if replaced and VerboseNamecallCapture and VerboseNamecallCapture > 0 then
+                    pcall(function()
+                        print(string.format('[SilentAim][ReplaceVerbose] %s FireServer replaced args before sending. Silent target=%s. Orig=%s', tostring(remote.Name or remote.ClassName), tostring(SilentAimData.player and SilentAimData.player.Name or 'nil'), table.concat(detailedSummary, ', ')))
+                    end)
+                end
+
+                return RemoteFallbackOriginals[remote].FireServer(self, table.unpack(args))
+        end
+    end
+
+    if type(remote.InvokeServer) == "function" then
+        remote.InvokeServer = function(self, ...)
+            local args = { ... }
+
+            -- Prepare a small summary and a more detailed summary of original arguments for debugging
+            local function vec3str(v) return string.format('%.2f,%.2f,%.2f', v.X, v.Y, v.Z) end
+            local function cfrstr(cf) local p = cf.Position; return string.format('%.2f,%.2f,%.2f', p.X, p.Y, p.Z) end
+            local function dumpTable(t, limit)
+                local parts = {}
+                for k, val in pairs(t) do
+                    if #parts >= (limit or 8) then break end
+                    local tv = typeof(val)
+                    local repr = tv
+                    if tv == 'Vector3' then repr = repr .. ':' .. vec3str(val)
+                    elseif tv == 'CFrame' then repr = repr .. ':' .. cfrstr(val)
+                    else repr = repr .. ':' .. tostring(val)
+                    end
+                    table.insert(parts, tostring(k) .. '=' .. repr)
+                end
+                return '{' .. table.concat(parts, ',') .. '}'
+            end
+
+            local origSummary = {}
+            local detailedSummary = {}
+            for i, v in ipairs(args) do
+                local tv = typeof(v)
+                table.insert(origSummary, tv)
+                if tv == 'Vector3' then
+                    table.insert(detailedSummary, string.format('[%d]=Vector3(%s)', i, vec3str(v)))
+                elseif tv == 'CFrame' then
+                    table.insert(detailedSummary, string.format('[%d]=CFrame(%s)', i, cfrstr(v)))
+                elseif tv == 'table' then
+                    table.insert(detailedSummary, string.format('[%d]=table%s', i, dumpTable(v, 12)))
+                else
+                    table.insert(detailedSummary, string.format('[%d]=%s(%s)', i, tv, tostring(v)))
+                end
+            end
+
+            -- Throttle logs per-remote to avoid spamming
+            RemoteFallbackLogs[remote] = RemoteFallbackLogs[remote] or { count = 0, last = 0 }
+            local rl = RemoteFallbackLogs[remote]
+
+            local replaced = false
+            if SilentAimData and SilentAimData.position and SilentAimData.part then
+                local i = 1
+                while i <= #args do
+                    local v = args[i]
+                    local t = typeof(v)
+
+                    -- Handle tables with Origin/Position/Direction fields
+                    if t == 'table' then
+                        local changed = false
+                        -- normalize key lookup (case-insensitive common keys)
+                        local function hasKey(tbl, ...)
+                            for _, key in ipairs({...}) do
+                                if tbl[key] ~= nil then return key end
+                            end
+                            return nil
+                        end
+
+                        local originKey = hasKey(v, 'Origin', 'origin', 'Position', 'position')
+                        local dirKey = hasKey(v, 'Direction', 'direction')
+
+                        if originKey then
+                            v[originKey] = SilentAimData.position
+                            changed = true
+                        end
+
+                        if dirKey then
+                            local oldDir = v[dirKey]
+                            if typeof(oldDir) == 'Vector3' then
+                                local origin = v[originKey] or SilentAimData.position
+                                local newDir = (SilentAimData.position - origin)
+                                if newDir.Magnitude > 0 then
+                                    local mag = oldDir.Magnitude or 1
+                                    v[dirKey] = newDir.Unit * mag
+                                else
+                                    v[dirKey] = Vector3.new(0,0,0)
+                                end
+                                changed = true
+                            end
+                        end
+
+                        if changed then replaced = true end
+
+                    elseif t == 'Vector3' then
+                        -- If a Vector3 is followed by another Vector3, treat as origin + direction pair
+                        local nextv = args[i+1]
+                        if nextv and typeof(nextv) == 'Vector3' then
+                            local originalOrigin = args[i]
+                            local originalDir = args[i+1]
+                            local newDir = (SilentAimData.position - originalOrigin)
+                            if newDir.Magnitude > 0 then
+                                local mag = (typeof(originalDir) == 'Vector3' and originalDir.Magnitude) or newDir.Magnitude
+                                args[i+1] = newDir.Unit * mag
+                            else
+                                args[i+1] = Vector3.new(0,0,0)
+                            end
+                            replaced = true
+                            i = i + 2
+                        else
+                            args[i] = SilentAimData.position
+                            replaced = true
+                        end
+
+                    elseif t == 'CFrame' then
+                        args[i] = CFrame.new(SilentAimData.position)
+                        replaced = true
+                    elseif t == 'Ray' then
+                        local dir = v.Direction or Vector3.new(0,0,0)
+                        args[i] = Ray.new(SilentAimData.position, dir)
+                        replaced = true
+                    elseif t == 'Instance' and v:IsA('BasePart') then
+                        args[i] = SilentAimData.part
+                        replaced = true
+                    end
+
+                end
+
+                -- Aggressive fallback heuristics (if enabled)
+                if (not replaced) and library.flags["Silent_Aggressive_Remote"] then
+                    for j = 1, #args do
+                        if typeof(args[j]) == 'Vector3' and typeof(args[j+1]) == 'number' then
+                            local origin = args[j]
+                            local distance = args[j+1]
+                            local newDir = (SilentAimData.position - origin)
+                            if newDir.Magnitude > 0 then
+                                args[j+1] = newDir.Unit * (distance or newDir.Magnitude)
+                                replaced = true
+                                break
+                            end
+                        end
+
+                        if type(args[j]) == 'table' and #args[j] >= 2 and typeof(args[j][1]) == 'Vector3' and typeof(args[j][2]) == 'Vector3' then
+                            local origin = args[j][1]
+                            local dir = args[j][2]
+                            local newDir = (SilentAimData.position - origin)
+                            if newDir.Magnitude > 0 then
+                                args[j][2] = newDir.Unit * (dir.Magnitude or newDir.Magnitude)
+                                replaced = true
+                                break
+                            end
+                        end
+                    end
+                end
+
+                if replaced and (tick() - (rl.lastNotification or 0)) > 0.75 then
+                    rl.lastNotification = tick()
+                    pcall(function()
+                        if library and library.SendNotification then
+                            library:SendNotification('SilentAim injected into '..tostring(remote.Name or remote.ClassName), 1, Color3.fromRGB(0,255,0))
+                        end
+                    end)
+                end
+
+                if (tick() - rl.last) > 1 and rl.count < 20 then
+                    rl.count = rl.count + 1; rl.last = tick()
+                    pcall(function()
+                        print(string.format('[SilentAim][RemoteDebug] %s InvokeServer called. Silent target=%s. Orig=%s Replaced=%s\nStack: %s', tostring(remote.Name or remote.ClassName), tostring(SilentAimData.player and SilentAimData.player.Name or 'nil'), table.concat(detailedSummary, ', '), tostring(replaced), debug.traceback('',2)))
+                    end)
+                end
+            end
+
+            RemoteFallbackLogs[remote] = rl
+            return RemoteFallbackOriginals[remote].InvokeServer(self, table.unpack(args))
+        end
+    end
+end
+
+-- Install a namecall hook to catch remote calls we couldn't wrap directly
+local namecallHookInstalled = false
+local oldNamecall
+local VerboseNamecallCapture = 0 -- counts how many namecalls to print verbosely
+local FullNamecallDump = 0 -- dump all namecalls (method + arg types) for next N calls (debug)
+local function InstallNamecallHook()
+    if namecallHookInstalled then return end
+    local ok, mt = pcall(getrawmetatable, game)
+    if not ok or not mt then return end
+    oldNamecall = mt.__namecall
+    setreadonly(mt, false)
+    mt.__namecall = newcclosure(function(self, ...)
+        local method = getnamecallmethod()
+        local argsAll = { ... }
+
+        -- Full namecall dump (debug): print any namecall signatures to discover game behavior
+        if FullNamecallDump and FullNamecallDump > 0 and not checkcaller() then
+            FullNamecallDump = math.max(FullNamecallDump - 1, 0)
+            pcall(function()
+                local parts = {}
+                for i, v in ipairs(argsAll) do
+                    local tv = typeof(v)
+                    if tv == 'string' or tv == 'number' or tv == 'boolean' then
+                        table.insert(parts, string.format('%s(%s)', tv, tostring(v)))
+                    else
+                        table.insert(parts, tv)
+                    end
+                end
+                print(string.format('[SilentAim][NamecallDump] %s.%s Args=%s', tostring(self and (self.Name or self.ClassName) or 'unknown'), method, table.concat(parts, ', ')))
+            end)
+        end
+
+        -- Ray redirection: try Workspace methods first, then generic detection
+        if not checkcaller() and Toggles and Toggles.aim_Enabled and Toggles.aim_Enabled.Value and SilentAimData and SilentAimData.position then
+            local didRedirect = false
+
+            -- Existing workspace-targeted logic (keeps compatibility)
+            if self == Workspace and (method == 'FindPartOnRayWithIgnoreList' or method == 'FindPartOnRay' or method == 'Raycast' or method:lower() == 'findpartonray') then
+                local args = { table.unpack(argsAll) }
+                local argsFull = {self, table.unpack(args)}
+                if method == 'FindPartOnRayWithIgnoreList' and ValidateArguments(argsFull, ExpectedArguments.FindPartOnRayWithIgnoreList) then
+                    local ray = args[1]
+                    local ok, origin = pcall(function() return ray.Origin end)
+                    if ok then
+                        local newDir = getDirection(origin, SilentAimData.position)
+                        if newDir.Magnitude > 0 then
+                            args[1] = Ray.new(origin, newDir)
+                            didRedirect = true
+                            pcall(function() print(string.format('[SilentAim][RayNamecall] Redirected %s to %s', method, tostring(SilentAimData.player and SilentAimData.player.Name or 'nil'))) end)
+                        end
+                    end
+                elseif method == 'FindPartOnRay' and ValidateArguments(argsFull, ExpectedArguments.FindPartOnRay) then
+                    local ray = args[1]
+                    local ok, origin = pcall(function() return ray.Origin end)
+                    if ok then
+                        local newDir = getDirection(origin, SilentAimData.position)
+                        if newDir.Magnitude > 0 then
+                            args[1] = Ray.new(origin, newDir)
+                            didRedirect = true
+                            pcall(function() print(string.format('[SilentAim][RayNamecall] Redirected %s to %s', method, tostring(SilentAimData.player and SilentAimData.player.Name or 'nil'))) end)
+                        end
+                    end
+                elseif method == 'Raycast' and ValidateArguments(argsFull, ExpectedArguments.Raycast) then
+                    local origin = args[1]
+                    if typeof(origin) == 'Vector3' then
+                        args[2] = getDirection(origin, SilentAimData.position)
+                        didRedirect = true
+                        pcall(function() print(string.format('[SilentAim][RayNamecall] Redirected %s to %s', method, tostring(SilentAimData.player and SilentAimData.player.Name or 'nil'))) end)
+                    end
+                end
+
+                if didRedirect then return oldNamecall(self, table.unpack(args)) end
+            end
+
+            -- Generic fallback: catch calls that pass a Ray or (Vector3, Vector3) as args even if self != Workspace
+            if not didRedirect then
+                -- If first arg is a Ray
+                if #argsAll >= 1 and typeof(argsAll[1]) == 'Ray' then
+                    local ok, origin = pcall(function() return argsAll[1].Origin end)
+                    if ok then
+                        local newDir = getDirection(origin, SilentAimData.position)
+                        if newDir.Magnitude > 0 then
+                            argsAll[1] = Ray.new(origin, newDir)
+                            didRedirect = true
+                            pcall(function() print(string.format('[SilentAim][RayNamecall] Generic redirected Ray arg in %s', method)) end)
+                        end
+                    end
+                -- If args are (Vector3 origin, Vector3 direction)
+                elseif #argsAll >= 2 and typeof(argsAll[1]) == 'Vector3' and typeof(argsAll[2]) == 'Vector3' then
+                    argsAll[2] = getDirection(argsAll[1], SilentAimData.position)
+                    didRedirect = true
+                    pcall(function() print(string.format('[SilentAim][RayNamecall] Generic redirected Vector3 origin/direction in %s', method)) end)
+                end
+
+                if didRedirect then
+                    return oldNamecall(self, table.unpack(argsAll))
+                end
+            end
+        end
+
+        if (method == 'FireServer' or method == 'InvokeServer') and not checkcaller() and (RemoteFallbackEnabled or (VerboseNamecallCapture and VerboseNamecallCapture > 0)) then
+            local args = { ... }
+
+            -- simple helper for formatting/diagnostics
+            local function fmtArg(v)
+                local tv = typeof(v)
+                if tv == 'Vector3' then return string.format('V3(%.2f,%.2f,%.2f)', v.X, v.Y, v.Z)
+                elseif tv == 'CFrame' then local p = v.Position; return string.format('CFrame(%.2f,%.2f,%.2f)', p.X, p.Y, p.Z)
+                elseif tv == 'table' then return 'table' end
+                return tv
+            end
+
+            local origSummary = {}
+            for i, v in ipairs(args) do table.insert(origSummary, fmtArg(v)) end
+
+            -- Throttle per-remote
+            RemoteFallbackLogs[self] = RemoteFallbackLogs[self] or { count = 0, last = 0 }
+            local rl = RemoteFallbackLogs[self]
+
+            -- If user requested a verbose capture (after shooting), print detailed per-arg info regardless of replacements
+            if VerboseNamecallCapture and VerboseNamecallCapture > 0 then
+                VerboseNamecallCapture = VerboseNamecallCapture - 1
+                pcall(function()
+                    print(string.format('[SilentAim][NamecallCapture] %s.%s called. Silent target=%s. Args=%s\nStack: %s', tostring(self and (self.Name or self.ClassName) or 'unknown'), method, tostring(SilentAimData and SilentAimData.player and SilentAimData.player.Name or 'nil'), table.concat(origSummary, ', '), debug.traceback('', 2)))
+                end)
+            end
+
+            -- Apply heuristic replacements (same logic as WrapRemote)
+            local replaced = false
+            if SilentAimData and SilentAimData.position and SilentAimData.part then
+                local i = 1
+                while i <= #args do
+                    local v = args[i]
+                    local t = typeof(v)
+
+                    if t == 'table' then
+                        local changed = false
+                        if #v >= 2 and typeof(v[1]) == 'Vector3' and typeof(v[2]) == 'Vector3' then
+                            local origin, dir = v[1], v[2]
+                            local newDir = (SilentAimData.position - origin)
+                            if newDir.Magnitude > 0 then v[2] = newDir.Unit * (dir.Magnitude or newDir.Magnitude) end
+                            replaced = true
+                            changed = true
+                        else
+                            local function findKey(tbl, ...)
+                                for _, k in ipairs({...}) do if tbl[k] ~= nil then return k end end
+                                return nil
+                            end
+                            local originKey = findKey(v, 'Origin','origin','Position','position','From','from')
+                            local toKey = findKey(v, 'To','to','Target','target','Position')
+                            local dirKey = findKey(v, 'Direction','direction','Dir','dir','Velocity','velocity')
+                            if originKey and toKey then v[toKey] = SilentAimData.position; replaced = true; changed = true end
+                            if originKey and dirKey and typeof(v[dirKey]) == 'Vector3' then local origin = v[originKey] or SilentAimData.position; local newDir = (SilentAimData.position - origin); if newDir.Magnitude>0 then v[dirKey] = newDir.Unit * (v[dirKey].Magnitude or newDir.Magnitude) end; replaced=true; changed=true end
+                            if originKey and dirKey and typeof(v[dirKey]) == 'Vector2' then local screenPos = Camera:WorldToViewportPoint(SilentAimData.position); v[dirKey] = Vector2.new(screenPos.X, screenPos.Y); replaced=true; changed=true end
+                        end
+                        i = i + 1
+
+                    elseif t == 'Vector3' then
+                        local nextv = args[i+1]
+                        if nextv and typeof(nextv) == 'Vector3' then
+                            local origin, dir = args[i], args[i+1]
+                            local newDir = (SilentAimData.position - origin)
+                            if newDir.Magnitude > 0 then args[i+1] = newDir.Unit * (dir.Magnitude or newDir.Magnitude) end
+                            replaced = true
+                            i = i + 2
+                        else
+                            args[i] = SilentAimData.position
+                            replaced = true
+                            i = i + 1
+                        end
+
+                    elseif t == 'CFrame' then
+                        args[i] = CFrame.new(SilentAimData.position)
+                        replaced = true
+                        i = i + 1
+
+                    elseif t == 'Ray' then
+                        local dir = v.Direction or Vector3.new(0,0,0)
+                        args[i] = Ray.new(SilentAimData.position, dir)
+                        replaced = true
+                        i = i + 1
+
+                    elseif t == 'Vector2' then
+                        -- remote passing screen position; convert target world pos to screen coords
+                        local screenPos = Camera:WorldToViewportPoint(SilentAimData.position)
+                        args[i] = Vector2.new(screenPos.X, screenPos.Y)
+                        replaced = true
+                        i = i + 1
+
+                    elseif t == 'number' then
+                        local nextn = args[i+1]
+                        if type(nextn) == 'number' then
+                            local vx = math.abs(args[i]) <= (Camera.ViewportSize.X + 1) and math.abs(nextn) <= (Camera.ViewportSize.Y + 1)
+                            if vx then
+                                local screenPos = Camera:WorldToViewportPoint(SilentAimData.position)
+                                args[i] = screenPos.X
+                                args[i+1] = screenPos.Y
+                                replaced = true
+                                i = i + 2
+                            else
+                                i = i + 1
+                            end
+                        else
+                            i = i + 1
+                        end
+
+                    elseif t == 'userdata' then
+                        local ok1, origin = pcall(function() return v.Origin end)
+                        local ok2, direction = pcall(function() return v.Direction end)
+                        if ok1 and ok2 and typeof(origin) == 'Vector3' and typeof(direction) == 'Vector3' then
+                            args[i] = Ray.new(SilentAimData.position, direction)
+                            replaced = true
+                        end
+                        i = i + 1
+
+                    elseif t == 'Instance' and v:IsA('BasePart') then
+                        args[i] = SilentAimData.part
+                        replaced = true
+                        i = i + 1
+
+                    else
+                        i = i + 1
+                    end
+                end
+
+                -- Aggressive fallback (if enabled)
+                if (not replaced) and library.flags["Silent_Aggressive_Remote"] then
+                    for j = 1, #args do
+                        if typeof(args[j]) == 'Vector3' and typeof(args[j+1]) == 'number' then
+                            local origin = args[j]
+                            local distance = args[j+1]
+                            local newDir = (SilentAimData.position - origin)
+                            if newDir.Magnitude > 0 then
+                                args[j+1] = newDir.Unit * (distance or newDir.Magnitude)
+                                replaced = true
+                                break
+                            end
+                        end
+
+                        if type(args[j]) == 'table' and #args[j] >= 2 and typeof(args[j][1]) == 'Vector3' and typeof(args[j][2]) == 'Vector3' then
+                            local origin = args[j][1]
+                            local dir = args[j][2]
+                            local newDir = (SilentAimData.position - origin)
+                            if newDir.Magnitude > 0 then
+                                args[j][2] = newDir.Unit * (dir.Magnitude or newDir.Magnitude)
+                                replaced = true
+                                break
+                            end
+                        end
+                    end
+                end
+
+                if replaced and (tick() - (rl.lastNotification or 0)) > 0.75 then
+                    rl.lastNotification = tick()
+                    pcall(function()
+                        if library and library.SendNotification then
+                            library:SendNotification('SilentAim injected via namecall on '..tostring(self and (self.Name or self.ClassName) or 'unknown'), 1, Color3.fromRGB(0,255,0))
+                        end
+                    end)
+                end
+
+                if (tick() - rl.last) > 1 and rl.count < 50 then
+                    rl.count = rl.count + 1; rl.last = tick()
+                    pcall(function()
+                        print(string.format('[SilentAim][RemoteDebugNamecall] %s.%s called. Silent target=%s. Orig=%s Replaced=%s', tostring(self and (self.Name or self.ClassName) or 'unknown'), method, tostring(SilentAimData.player and SilentAimData.player.Name or 'nil'), table.concat(origSummary, ', '), tostring(replaced)))
+                    end)
+                end
+            end
+
+            -- Force-replace heuristic for quick debugging (one-shot)
+            if ForceReplaceCount and ForceReplaceCount > 0 and SilentAimData and SilentAimData.position then
+                local f_replaced = false
+                for idx = 1, #args do
+                    local vt = typeof(args[idx])
+                    if vt == 'Vector3' then
+                        args[idx] = SilentAimData.position; f_replaced = true
+                    elseif vt == 'CFrame' then
+                        args[idx] = CFrame.new(SilentAimData.position); f_replaced = true
+                    elseif vt == 'Vector2' then
+                        local sp = Camera:WorldToViewportPoint(SilentAimData.position)
+                        args[idx] = Vector2.new(sp.X, sp.Y); f_replaced = true
+                    elseif vt == 'number' and type(args[idx+1]) == 'number' then
+                        local sp = Camera:WorldToViewportPoint(SilentAimData.position)
+                        args[idx] = sp.X; args[idx+1] = sp.Y; f_replaced = true
+                    elseif vt == 'string' and SilentAimData.player and type(args[idx])=='string' and args[idx]:lower() == (SilentAimData.player.Name or ''):lower() then
+                        args[idx] = SilentAimData.player; f_replaced = true
+                    elseif vt == 'Instance' and args[idx]:IsA('BasePart') then
+                        args[idx] = SilentAimData.part; f_replaced = true
+                    end
+                end
+                if f_replaced then
+                    replaced = true
+                    ForceReplaceCount = math.max(ForceReplaceCount - 1, 0)
+                    pcall(function()
+                        print(string.format('[SilentAim][ForceReplace] namecall %s.%s forced replacement. Remaining=%d', tostring(self and (self.Name or self.ClassName) or 'unknown'), method, ForceReplaceCount))
+                    end)
+                end
+            end
+
+            RemoteFallbackLogs[self] = rl
+
+            if replaced and VerboseNamecallCapture and VerboseNamecallCapture > 0 then
+                pcall(function()
+                    print(string.format('[SilentAim][ReplaceVerbose] %s.%s namecall replaced args before call. Silent target=%s. Orig=%s', tostring(self and (self.Name or self.ClassName) or 'unknown'), method, tostring(SilentAimData.player and SilentAimData.player.Name or 'nil'), table.concat(origSummary, ', ')))
+                end)
+            end
+
+            return oldNamecall(self, table.unpack(args))
+        end
+
+        return oldNamecall(self, ...)
+    end)
+    setreadonly(mt, true)
+    namecallHookInstalled = true
+    pcall(function() print('[SilentAim][NamecallHook] Installed namecall hook') end)
+end
+
+InstallNamecallHook()
+
+-- Install workspace raycast hooks to intercept local raycasts for silent aim
+
+-- Expected argument shapes for ray methods (used for conservative validation)
+local ExpectedArguments = {
+    FindPartOnRayWithIgnoreList = {
+        ArgCountRequired = 2,
+        Args = {"Instance", "Ray", "table", "boolean", "boolean"}
+    },
+    FindPartOnRayWithWhitelist = {
+        ArgCountRequired = 2,
+        Args = {"Instance", "Ray", "table", "boolean"}
+    },
+    FindPartOnRay = {
+        ArgCountRequired = 2,
+        Args = {"Instance", "Ray", "Instance", "boolean", "boolean"}
+    },
+    Raycast = {
+        ArgCountRequired = 2,
+        Args = {"Instance", "Vector3", "Vector3", "RaycastParams"}
+    }
+}
+
+local function ValidateArguments(Args, RayMethod)
+    if not RayMethod then return false end
+    local Matches = 0
+    if #Args < (RayMethod.ArgCountRequired or 0) then return false end
+    for Pos, Argument in next, Args do
+        local Expected = RayMethod.Args[Pos]
+        if Expected and typeof(Argument) == Expected then
+            Matches = Matches + 1
+        end
+    end
+    return Matches >= (RayMethod.ArgCountRequired or 0)
+end
+
+local function getDirection(Origin, Position)
+    -- return a long unit vector towards the position
+    local dir = (Position - Origin)
+    if dir.Magnitude == 0 then return Vector3.new(0,0,0) end
+    return dir.Unit * 1000
+end
+
+local RayHookInstalled = false
+local function InstallRaycastHooks()
+    if RayHookInstalled then return end
+    RayHookInstalled = true
+    local ok_fpwril, orig_FindPartOnRayWithIgnoreList = pcall(function() return Workspace.FindPartOnRayWithIgnoreList end)
+    if not ok_fpwril then orig_FindPartOnRayWithIgnoreList = nil end
+    local ok_fpor, orig_FindPartOnRay = pcall(function() return Workspace.FindPartOnRay end)
+    if not ok_fpor then orig_FindPartOnRay = nil end
+    local ok_rr, orig_Raycast = pcall(function() return Workspace.Raycast end)
+    if not ok_rr then orig_Raycast = nil end
+
+    if type(orig_FindPartOnRayWithIgnoreList) == 'function' then
+        local ok_assign, assign_err = pcall(function()
+            Workspace.FindPartOnRayWithIgnoreList = function(self, ray, ignoreList, ...)
+                local args = {self, ray, ignoreList, ...}
+                if not ValidateArguments(args, ExpectedArguments.FindPartOnRayWithIgnoreList) then
+                    return orig_FindPartOnRayWithIgnoreList(self, ray, ignoreList, ...)
+                end
+                local ok, origin = pcall(function() return ray.Origin end)
+                local ok2, dir = pcall(function() return ray.Direction end)
+                if SilentAimData and SilentAimData.position and ok and ok2 and typeof(origin)=='Vector3' then
+                    local newDir = getDirection(origin, SilentAimData.position)
+                    if newDir.Magnitude > 0 then
+                        local newRay = Ray.new(origin, newDir)
+                        pcall(function() print(string.format('[SilentAim][RayHook] Redirected FindPartOnRayWithIgnoreList to %s from %s', tostring(SilentAimData.player and SilentAimData.player.Name or 'nil'), tostring(origin))) end)
+                        return orig_FindPartOnRayWithIgnoreList(self, newRay, ignoreList, ...)
+                    end
+                end
+                return orig_FindPartOnRayWithIgnoreList(self, ray, ignoreList, ...)
+            end
+        end)
+        if ok_assign then
+            pcall(function() print('[SilentAim][RayHook] Hooked FindPartOnRayWithIgnoreList') end)
+        else
+            pcall(function() print('[SilentAim][RayHook] Failed to hook FindPartOnRayWithIgnoreList: '..tostring(assign_err)) end)
+        end
+    else
+        pcall(function() print('[SilentAim][RayHook] FindPartOnRayWithIgnoreList not available; skipping hook') end)
+    end
+
+    if type(orig_FindPartOnRay) == 'function' then
+        local ok_assign, assign_err = pcall(function()
+            Workspace.FindPartOnRay = function(self, ray, ...)
+                local args = {self, ray, ...}
+                if not ValidateArguments(args, ExpectedArguments.FindPartOnRay) then
+                    return orig_FindPartOnRay(self, ray, ...)
+                end
+                local ok, origin = pcall(function() return ray.Origin end)
+                local ok2, dir = pcall(function() return ray.Direction end)
+                if SilentAimData and SilentAimData.position and ok and ok2 and typeof(origin)=='Vector3' then
+                    local newDir = getDirection(origin, SilentAimData.position)
+                    if newDir.Magnitude > 0 then
+                        local newRay = Ray.new(origin, newDir)
+                        pcall(function() print(string.format('[SilentAim][RayHook] Redirected FindPartOnRay to %s from %s', tostring(SilentAimData.player and SilentAimData.player.Name or 'nil'), tostring(origin))) end)
+                        return orig_FindPartOnRay(self, newRay, ...)
+                    end
+                end
+                return orig_FindPartOnRay(self, ray, ...)
+            end
+        end)
+        if ok_assign then
+            pcall(function() print('[SilentAim][RayHook] Hooked FindPartOnRay') end)
+        else
+            pcall(function() print('[SilentAim][RayHook] Failed to hook FindPartOnRay: '..tostring(assign_err)) end)
+        end
+    else
+        pcall(function() print('[SilentAim][RayHook] FindPartOnRay not available; skipping hook') end)
+    end
+
+    if type(orig_Raycast) == 'function' then
+        local ok_assign, assign_err = pcall(function()
+            Workspace.Raycast = function(self, origin, direction, ...)
+                local args = {self, origin, direction, ...}
+                if not ValidateArguments(args, ExpectedArguments.Raycast) then
+                    return orig_Raycast(self, origin, direction, ...)
+                end
+                if SilentAimData and SilentAimData.position and typeof(origin)=='Vector3' then
+                    local newDir = getDirection(origin, SilentAimData.position)
+                    if newDir.Magnitude > 0 then
+                        pcall(function() print(string.format('[SilentAim][RayHook] Redirected Raycast to %s from %s', tostring(SilentAimData.player and SilentAimData.player.Name or 'nil'), tostring(origin))) end)
+                        return orig_Raycast(self, origin, newDir, ...)
+                    end
+                end
+                return orig_Raycast(self, origin, direction, ...)
+            end
+        end)
+        if ok_assign then
+            pcall(function() print('[SilentAim][RayHook] Hooked Raycast') end)
+        else
+            pcall(function() print('[SilentAim][RayHook] Failed to hook Raycast: '..tostring(assign_err)) end)
+        end
+    else
+        pcall(function() print('[SilentAim][RayHook] Raycast not available; skipping hook') end)
+    end
+
+    pcall(function() print('[SilentAim][RayHook] Installed raycast hooks') end)
+end
+
+local RayHookUseAssignment = false
+if RayHookUseAssignment then
+    local ok_install_rays, install_err = pcall(InstallRaycastHooks)
+    if not ok_install_rays then pcall(function() print('[SilentAim][RayHook] InstallRaycastHooks failed: '..tostring(install_err)) end) end
+else
+    pcall(function() print('[SilentAim][RayHook] Assignment-based Workspace hooks are disabled; using namecall interception only') end)
+end
+
+local function ScanAndWrapRemotes()
+    for _, obj in pairs(ReplicatedStorage:GetDescendants()) do
+        if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
+            pcall(WrapRemote, obj)
+        end
+    end
+    for _, obj in pairs(Workspace:GetDescendants()) do
+        if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
+            pcall(WrapRemote, obj)
+        end
+    end
+end
+
+local function EnableRemoteFallback()
+    if RemoteFallbackEnabled then return end
+    RemoteFallbackEnabled = true
+    ScanAndWrapRemotes()
+    remoteScanConn = ReplicatedStorage.DescendantAdded:Connect(function(desc)
+        if desc:IsA("RemoteEvent") or desc:IsA("RemoteFunction") then
+            pcall(WrapRemote, desc)
+        end
+    end)
+    print("[SilentAim] Remote fallback enabled")
+end
+
+local function DisableRemoteFallback()
+    if not RemoteFallbackEnabled then return end
+    RemoteFallbackEnabled = false
+    if remoteScanConn and remoteScanConn.Connected then remoteScanConn:Disconnect() end
+
+    -- Restore originals
+    for remote, orig in pairs(RemoteFallbackOriginals) do
+        pcall(function()
+            if orig.FireServer then remote.FireServer = orig.FireServer end
+            if orig.InvokeServer then remote.InvokeServer = orig.InvokeServer end
+        end)
+    end
+
+    table.clear(RemoteFallbackOriginals)
+    table.clear(RemoteFallbackWrapped)
+    print("[SilentAim] Remote fallback disabled")
 end
 
 
@@ -1516,13 +2744,54 @@ UpdateTeleportList()
 Connections.InputBegan = UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
     
+    -- Update hold-mode bind indicators on key press
+    for _, opt in pairs(library.options) do
+        if opt and opt.class == 'bind' and opt.mode == 'hold' and opt.bind ~= 'none' then
+            if input.KeyCode == opt.bind or input.UserInputType == opt.bind then
+                if opt.indicatorValue and not opt.noindicator then
+                    opt.indicatorValue:SetValue('true')
+                    opt.indicatorValue:SetEnabled(true)
+                end
+            end
+        end
+    end
+    
     -- Aimbot Key
     if input.UserInputType == Enum.UserInputType.MouseButton2 then
         IsAimKeyHeld = true
     end
+
+    -- Mouse Left Click => capture namecall args for debugging when silent aim active
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        if SilentAimData and RemoteFallbackEnabled then
+            VerboseNamecallCapture = 8
+            print('[SilentAim] Verbose capture enabled for next remote calls (8) - shoot once or twice')
+        end
+    end
+
+    -- Also watch the legacy Mouse.Button1Down (some games process InputBegan as gameProcessed)
+    if Mouse then
+        pcall(function()
+            if not Connections.MouseButton1Down then
+                Connections.MouseButton1Down = Mouse.Button1Down:Connect(function()
+                    if SilentAimData and (RemoteFallbackEnabled or (VerboseNamecallCapture and VerboseNamecallCapture > 0)) then
+                        VerboseNamecallCapture = 12
+                        FullNamecallDump = math.max(FullNamecallDump, 50)
+                        ForceReplaceCount = math.max(ForceReplaceCount, 6)
+                        pcall(function()
+                            print('[SilentAim] Verbose capture enabled via Mouse.Button1Down (12) - shoot once or twice')
+                            print('[SilentAim] Also enabled FullNamecallDump=50 and ForceReplaceCount=6 for deeper tracing')
+                            print('[SilentAim] Mouse.Button1Down stack: '..debug.traceback('', 2))
+                        end)
+                    end
+                end)
+            end
+        end)
+    end
     
     -- Silent Aim Key
-    if input.KeyCode == Enum.KeyCode.C then
+    local silentBind = library.flags["Silent_Aim_Key"]
+    if (silentBind and input.KeyCode == silentBind) or (input.KeyCode == Enum.KeyCode.C and not silentBind) then
         IsSilentAimKeyHeld = true
     end
     
@@ -1542,10 +2811,23 @@ Connections.InputBegan = UserInputService.InputBegan:Connect(function(input, gam
 end)
 
 Connections.InputEnded = UserInputService.InputEnded:Connect(function(input)
+    -- Update hold-mode bind indicators on key release
+    for _, opt in pairs(library.options) do
+        if opt and opt.class == 'bind' and opt.mode == 'hold' and opt.bind ~= 'none' then
+            if input.KeyCode == opt.bind or input.UserInputType == opt.bind then
+                if opt.indicatorValue and not opt.noindicator then
+                    opt.indicatorValue:SetValue('false')
+                    opt.indicatorValue:SetEnabled(true)
+                end
+            end
+        end
+    end
+
     if input.UserInputType == Enum.UserInputType.MouseButton2 then
         IsAimKeyHeld = false
     end
-    if input.KeyCode == Enum.KeyCode.C then
+    local silentBind = library.flags["Silent_Aim_Key"]
+    if (silentBind and input.KeyCode == silentBind) or (input.KeyCode == Enum.KeyCode.C and not silentBind) then
         IsSilentAimKeyHeld = false
     end
 end)
@@ -1561,6 +2843,47 @@ Connections.RenderStepped = RunService.RenderStepped:Connect(function(deltaTime)
     local screenCenter = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
     local mousePos = UserInputService:GetMouseLocation()
     
+    -- Optionally force silent aim for testing
+    if library.flags["Silent_Force_Active"] then
+        IsSilentAimKeyHeld = true
+    end
+
+    UpdateSilentAimTarget()
+
+    -- Remote fallback toggle
+    if library.flags["Silent_Remote_Fallback"] then
+        EnableRemoteFallback()
+    else
+        DisableRemoteFallback()
+    end
+
+    -- Update debug label if present
+    if library.flags["Silent_Debug_Label"] ~= nil then
+        -- Throttled notifications to avoid spamming
+        if SilentAimActiveIndicator then
+            if not SilentAimLastNotify or (tick() - SilentAimLastNotify) > 1 then
+                library:SendNotification("Silent Aim active: " .. (SilentAimLastDebug or "locked"), 1, Color3.fromRGB(0,255,0))
+                SilentAimLastNotify = tick()
+            end
+        else
+            -- Notify once on deactivation
+            if SilentAimPrevActive then
+                library:SendNotification("Silent Aim inactive", 1, Color3.fromRGB(255,100,100))
+                SilentAimPrevActive = false
+                SilentAimLastNotify = nil
+            end
+        end
+
+        -- Update the visible indicator we created in place of AddLabel
+        if library.silentDebugIndicator then
+            library.silentDebugIndicator:SetValue(SilentAimActiveIndicator and 'Active' or 'Inactive')
+            library.silentDebugIndicator:SetEnabled(true)
+        end
+    end
+
+    -- store prev state
+    SilentAimPrevActive = SilentAimActiveIndicator or SilentAimPrevActive
+
     --[[ RGB HUE UPDATE ]]--
     local rgbSpeed = library.flags["RGB_Speed"] or 1
     RGBHue = (RGBHue + deltaTime * rgbSpeed * 0.5) % 1
