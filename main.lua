@@ -27,7 +27,7 @@ getgenv().luaguardvars = {
                         SERVICES & VARIABLES
 ═══════════════════════════════════════════════════════════════ ]]
 
---// Services
+--// ServicesS
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -52,6 +52,10 @@ local IsSilentAimKeyHeld = false
 local Connections = {}
 local RGBHue = 0
 local OriginalAmbient = Lighting.Ambient
+local OriginalBrightness = Lighting.Brightness
+local OriginalClockTime = Lighting.ClockTime
+local OriginalFogEnd = Lighting.FogEnd
+local OriginalGlobalShadows = Lighting.GlobalShadows
 local SavedPosition = nil
 local AntiAFKEnabled = false
 local SpinBotAngle = 0
@@ -347,21 +351,21 @@ print("Total lines generated: TBD")
 
 --// Create Sections
 local AimbotSections = {
-    Main = tabs.Aimbot:AddSection("Main Settings", 1),
-    Targeting = tabs.Aimbot:AddSection("Targeting", 2),
-    FOV = tabs.Aimbot:AddSection("FOV Circle", 1),
+    Aimbot = tabs.Aimbot:AddSection("Camera Aimbot", 1),
     Silent = tabs.Aimbot:AddSection("Silent Aim", 2),
+    FOV = tabs.Aimbot:AddSection("FOV Circle", 2),
 }
 
---// Main Settings Section
-AimbotSections.Main:AddToggle({
+--// Camera Aimbot Section
+AimbotSections.Aimbot:AddToggle({
+    enabled = true,
     text = "Enable Aimbot",
     flag = "Aimbot_Enabled",
     tooltip = "Master toggle for camera aimbot",
     risky = true,
 })
 
-AimbotSections.Main:AddBind({
+AimbotSections.Aimbot:AddBind({
     text = "Aim Key",
     flag = "Aimbot_Key",
     nomouse = false,
@@ -370,19 +374,68 @@ AimbotSections.Main:AddBind({
     tooltip = "Hold to lock onto target",
 })
 
-AimbotSections.Main:AddToggle({
+AimbotSections.Aimbot:AddToggle({
+    enabled = true,
+    text = "Third Person Mode",
+    flag = "Aimbot_Third_Person",
+    tooltip = "FOV follows mouse cursor (for third person)",
+})
+
+AimbotSections.Aimbot:AddSeparator({text = "Targeting Settings"})
+
+AimbotSections.Aimbot:AddList({
+    text = "Target Part",
+    flag = "Aimbot_Part",
+    tooltip = "Body part to aim at",
+    values = {"Head", "HumanoidRootPart", "UpperTorso", "LowerTorso", "Random", "Closest"},
+    value = "Head",
+})
+
+AimbotSections.Aimbot:AddList({
+    text = "Target Mode",
+    flag = "Aimbot_Priority",
+    tooltip = "How to select targets",
+    values = {"Nearest to Cursor", "Nearest to Player", "Lowest Health"},
+    value = "Nearest to Cursor",
+})
+
+AimbotSections.Aimbot:AddToggle({
+    enabled = true,
+    text = "Stick to Target",
+    flag = "Aimbot_Stick",
+    tooltip = "Stay locked on same target while aimbot active",
+})
+
+AimbotSections.Aimbot:AddSlider({
+    text = "Max Distance",
+    flag = "Aimbot_Max_Distance",
+    suffix = " studs",
+    value = 1000,
+    min = 100,
+    max = 5000,
+    increment = 100,
+    tooltip = "Maximum targeting distance",
+})
+
+AimbotSections.Aimbot:AddSeparator({text = "Filters"})
+
+AimbotSections.Aimbot:AddToggle({
+    enabled = true,
     text = "Team Check",
     flag = "Aimbot_Team_Check",
     tooltip = "Don't aim at teammates",
 })
 
-AimbotSections.Main:AddToggle({
+AimbotSections.Aimbot:AddToggle({
+    enabled = true,
     text = "Visible Check",
     flag = "Aimbot_Wall_Check",
     tooltip = "Only aim at visible targets (wall check)",
 })
 
-AimbotSections.Main:AddSlider({
+AimbotSections.Aimbot:AddSeparator({text = "Smoothing & Prediction"})
+
+AimbotSections.Aimbot:AddSlider({
     text = "Smoothing",
     flag = "Aimbot_Smoothness",
     suffix = "",
@@ -393,13 +446,14 @@ AimbotSections.Main:AddSlider({
     tooltip = "Lower = smoother aim, Higher = snappier aim",
 })
 
-AimbotSections.Main:AddToggle({
+AimbotSections.Aimbot:AddToggle({
+    enabled = true,
     text = "Prediction",
     flag = "Aimbot_Prediction",
     tooltip = "Predict target movement (experimental)",
 })
 
-AimbotSections.Main:AddSlider({
+AimbotSections.Aimbot:AddSlider({
     text = "Prediction Velocity",
     flag = "Aimbot_Prediction_Velocity",
     suffix = "x",
@@ -410,42 +464,9 @@ AimbotSections.Main:AddSlider({
     tooltip = "Velocity multiplier for prediction",
 })
 
---// Targeting Section
-AimbotSections.Targeting:AddList({
-    text = "Target Part",
-    flag = "Aimbot_Part",
-    tooltip = "Body part to aim at",
-    values = {"Head", "HumanoidRootPart", "UpperTorso", "LowerTorso", "Random", "Closest"},
-    value = "Head",
-})
-
-AimbotSections.Targeting:AddList({
-    text = "Target Mode",
-    flag = "Aimbot_Priority",
-    tooltip = "How to select targets",
-    values = {"Nearest to Cursor", "Nearest to Player", "Lowest Health"},
-    value = "Nearest to Cursor",
-})
-
-AimbotSections.Targeting:AddToggle({
-    text = "Stick to Target",
-    flag = "Aimbot_Stick",
-    tooltip = "Stay locked on same target while aimbot active",
-})
-
-AimbotSections.Targeting:AddSlider({
-    text = "Max Distance",
-    flag = "Aimbot_Max_Distance",
-    suffix = " studs",
-    value = 1000,
-    min = 100,
-    max = 5000,
-    increment = 50,
-    tooltip = "Maximum targeting distance",
-})
-
 --// FOV Circle Section
 AimbotSections.FOV:AddToggle({
+    enabled = true,
     text = "Show FOV Circle",
     flag = "Show_FOV",
     tooltip = "Display the FOV circle on screen",
@@ -459,19 +480,22 @@ AimbotSections.FOV:AddSlider({
     flag = "FOV_Radius",
     suffix = "px",
     value = 100,
-    min = 1,
+    min = 10,
     max = 500,
-    increment = 5,
+    increment = 10,
     tooltip = "Size of FOV circle",
     callback = function(value)
         FOVCircle.Radius = value
     end
 })
 
+AimbotSections.FOV:AddSeparator({text = "Appearance"})
+
 AimbotSections.FOV:AddToggle({
-    text = "Third Person Mode",
-    flag = "Aimbot_Third_Person",
-    tooltip = "FOV follows mouse cursor (for third person)",
+    enabled = true,
+    text = "Rainbow FOV",
+    flag = "FOV_RGB",
+    tooltip = "Cycle rainbow colors on FOV circle",
 })
 
 AimbotSections.FOV:AddColor({
@@ -485,29 +509,33 @@ AimbotSections.FOV:AddColor({
 })
 
 AimbotSections.FOV:AddToggle({
-    text = "Rainbow FOV",
-    flag = "FOV_RGB",
-    tooltip = "Cycle rainbow colors on FOV circle",
+    enabled = true,
+    text = "Filled Circle",
+    flag = "FOV_Filled",
+    tooltip = "Fill the FOV circle",
+    callback = function(state)
+        FOVCircle.Filled = state
+    end
 })
 
 AimbotSections.FOV:AddSlider({
-    text = "Filled Transparency",
-    flag = "FOV_Fill_Transparency",
+    text = "Fill Opacity",
+    flag = "FOV_Fill_Opacity",
     suffix = "%",
-    value = 0,
-    min = 0,
+    value = 30,
+    min = 5,
     max = 100,
     increment = 5,
-    tooltip = "Fill transparency (0 = no fill)",
+    tooltip = "Opacity of filled circle",
     callback = function(value)
-        FOVCircle.Filled = value > 0
         FOVCircle.Transparency = value / 100
     end
 })
 
 --// Silent Aim Section
 AimbotSections.Silent:AddToggle({
-    text = "Silent Aim",
+    enabled = true,
+    text = "Enable Silent Aim",
     flag = "Silent_Aim_Enabled",
     tooltip = "Silent aim (no camera movement)",
     risky = true,
@@ -522,14 +550,16 @@ AimbotSections.Silent:AddBind({
     tooltip = "Hold for silent aim",
 })
 
+AimbotSections.Silent:AddSeparator({text = "Accuracy Settings"})
+
 AimbotSections.Silent:AddSlider({
-    text = "Silent Aim Chance",
+    text = "Activation Chance",
     flag = "Silent_Aim_Chance",
     suffix = "%",
     value = 100,
     min = 1,
     max = 100,
-    increment = 1,
+    increment = 5,
     tooltip = "Chance for silent aim to activate",
 })
 
@@ -540,7 +570,7 @@ AimbotSections.Silent:AddSlider({
     value = 100,
     min = 1,
     max = 100,
-    increment = 1,
+    increment = 5,
     tooltip = "Chance to hit target with silent aim",
 })
 
@@ -551,41 +581,45 @@ AimbotSections.Silent:AddSlider({
 
 --// Create Sections
 local VisualsSections = {
-    PlayerESP = tabs.Visuals:AddSection("Player ESP", 1),
-    ESPColors = tabs.Visuals:AddSection("ESP Colors", 2),
-    Crosshair = tabs.Visuals:AddSection("Crosshair", 1),
-    World = tabs.Visuals:AddSection("World", 2),
+    ESP = tabs.Visuals:AddSection("Player ESP", 1),
+    World = tabs.Visuals:AddSection("World", 1),
+    Crosshair = tabs.Visuals:AddSection("Crosshair", 2),
 }
 
 --// Player ESP Section
-VisualsSections.PlayerESP:AddToggle({
+VisualsSections.ESP:AddToggle({
+    enabled = true,
     text = "Enable ESP",
     flag = "ESP_Enabled",
     tooltip = "Master ESP toggle",
 })
 
-VisualsSections.PlayerESP:AddBind({
-    text = "ESP Keybind",
-    flag = "ESP_Key",
-    nomouse = true,
-    mode = "toggle",
-    bind = Enum.KeyCode.Insert,
-    tooltip = "Toggle ESP on/off",
-})
-
-VisualsSections.PlayerESP:AddToggle({
+VisualsSections.ESP:AddToggle({
+    enabled = true,
     text = "Team Check",
     flag = "ESP_Team_Check",
     tooltip = "Hide ESP on teammates",
 })
 
-VisualsSections.PlayerESP:AddToggle({
+VisualsSections.ESP:AddSlider({
+    text = "Max Distance",
+    flag = "ESP_Max_Distance",
+    suffix = " studs",
+    value = 1000,
+    min = 100,
+    max = 5000,
+    increment = 100,
+    tooltip = "Maximum render distance",
+})
+
+VisualsSections.ESP:AddToggle({
+    enabled = true,
     text = "Box ESP",
     flag = "ESP_Box",
     tooltip = "Draw boxes around players",
 })
 
-VisualsSections.PlayerESP:AddList({
+VisualsSections.ESP:AddList({
     text = "Box Type",
     flag = "ESP_Box_Type",
     tooltip = "Style of ESP boxes",
@@ -593,19 +627,56 @@ VisualsSections.PlayerESP:AddList({
     value = "2D",
 })
 
-VisualsSections.PlayerESP:AddToggle({
+VisualsSections.ESP:AddToggle({
+    enabled = true,
+    text = "Box Outline",
+    flag = "ESP_Box_Outline",
+    tooltip = "Add black outline to boxes",
+})
+
+VisualsSections.ESP:AddColor({
+    text = "Box Color",
+    flag = "ESP_Box_Color",
+    tooltip = "Color of ESP boxes",
+    color = Color3.fromRGB(255, 50, 50),
+})
+
+VisualsSections.ESP:AddToggle({
+    enabled = true,
     text = "Name ESP",
     flag = "ESP_Name",
     tooltip = "Show player names",
 })
 
-VisualsSections.PlayerESP:AddToggle({
+VisualsSections.ESP:AddToggle({
+    enabled = true,
+    text = "Distance ESP",
+    flag = "ESP_Distance",
+    tooltip = "Show distance to players",
+})
+
+VisualsSections.ESP:AddToggle({
+    enabled = true,
+    text = "Tool/Weapon ESP",
+    flag = "ESP_Tool",
+    tooltip = "Show equipped tools",
+})
+
+VisualsSections.ESP:AddColor({
+    text = "Text Color",
+    flag = "ESP_Name_Color",
+    tooltip = "Color of text elements",
+    color = Color3.fromRGB(255, 255, 255),
+})
+
+VisualsSections.ESP:AddToggle({
+    enabled = true,
     text = "Health Bar",
     flag = "ESP_Health",
     tooltip = "Show health bars",
 })
 
-VisualsSections.PlayerESP:AddList({
+VisualsSections.ESP:AddList({
     text = "Health Position",
     flag = "ESP_Health_Position",
     tooltip = "Where to show health bar",
@@ -613,116 +684,93 @@ VisualsSections.PlayerESP:AddList({
     value = "Left",
 })
 
-VisualsSections.PlayerESP:AddToggle({
-    text = "Distance ESP",
-    flag = "ESP_Distance",
-    tooltip = "Show distance to players",
-})
-
-VisualsSections.PlayerESP:AddToggle({
+VisualsSections.ESP:AddToggle({
+    enabled = true,
     text = "Tracers",
     flag = "ESP_Tracers",
     tooltip = "Draw lines to players",
 })
 
-VisualsSections.PlayerESP:AddList({
-    text = "Tracer Position",
+VisualsSections.ESP:AddList({
+    text = "Tracer Origin",
     flag = "ESP_Tracer_Origin",
     tooltip = "Where tracers start from",
     values = {"Bottom", "Center", "Top", "Mouse"},
     value = "Bottom",
 })
 
-VisualsSections.PlayerESP:AddToggle({
-    text = "Skeleton ESP",
-    flag = "ESP_Skeleton",
-    tooltip = "Draw skeleton on players",
-})
-
-VisualsSections.PlayerESP:AddToggle({
-    text = "Chams/Highlight",
-    flag = "ESP_Chams",
-    tooltip = "Highlight players through walls",
-    risky = true,
-})
-
-VisualsSections.PlayerESP:AddSlider({
-    text = "Chams Transparency",
-    flag = "ESP_Chams_Transparency",
-    suffix = "%",
-    value = 50,
-    min = 0,
-    max = 100,
-    increment = 5,
-    tooltip = "Transparency of chams",
-})
-
-VisualsSections.PlayerESP:AddToggle({
-    text = "Tool/Weapon ESP",
-    flag = "ESP_Tool",
-    tooltip = "Show equipped tools",
-})
-
-VisualsSections.PlayerESP:AddSlider({
-    text = "Max Distance",
-    flag = "ESP_Max_Distance",
-    suffix = " studs",
-    value = 1000,
-    min = 100,
-    max = 5000,
-    increment = 50,
-    tooltip = "Maximum render distance",
-})
-
---// ESP Colors Section
-VisualsSections.ESPColors:AddColor({
-    text = "Box Color",
-    flag = "ESP_Box_Color",
-    tooltip = "Color of ESP boxes",
-    color = Color3.fromRGB(255, 50, 50),
-})
-
-VisualsSections.ESPColors:AddToggle({
-    text = "Rainbow Box",
-    flag = "ESP_Box_RGB",
-    tooltip = "Rainbow color cycling on boxes",
-})
-
-VisualsSections.ESPColors:AddColor({
-    text = "Name Color",
-    flag = "ESP_Name_Color",
-    tooltip = "Color of player names",
-    color = Color3.fromRGB(255, 255, 255),
-})
-
-VisualsSections.ESPColors:AddColor({
+VisualsSections.ESP:AddColor({
     text = "Tracer Color",
     flag = "ESP_Tracer_Color",
     tooltip = "Color of tracers",
     color = Color3.fromRGB(255, 50, 50),
 })
 
-VisualsSections.ESPColors:AddToggle({
-    text = "Rainbow Tracers",
-    flag = "ESP_Tracer_RGB",
-    tooltip = "Rainbow color cycling on tracers",
+VisualsSections.ESP:AddToggle({
+    enabled = true,
+    text = "Skeleton ESP",
+    flag = "ESP_Skeleton",
+    tooltip = "Draw skeleton on players",
 })
 
-VisualsSections.ESPColors:AddColor({
+VisualsSections.ESP:AddColor({
     text = "Skeleton Color",
     flag = "ESP_Skeleton_Color",
     tooltip = "Color of skeleton lines",
     color = Color3.fromRGB(255, 255, 255),
 })
 
-VisualsSections.ESPColors:AddColor({
+VisualsSections.ESP:AddToggle({
+    enabled = true,
+    text = "Chams/Highlight",
+    flag = "ESP_Chams",
+    tooltip = "Highlight players through walls",
+    risky = true,
+})
+
+VisualsSections.ESP:AddList({
+    text = "Chams Style",
+    flag = "ESP_Chams_Style",
+    tooltip = "Visual style of chams",
+    values = {"Fill", "Outline", "Both", "Glow", "Pulse", "Rainbow"},
+    value = "Fill",
+})
+
+VisualsSections.ESP:AddSlider({
+    text = "Chams Opacity",
+    flag = "ESP_Chams_Transparency",
+    suffix = "%",
+    value = 80,
+    min = 10,
+    max = 100,
+    increment = 10,
+    tooltip = "Opacity of chams fill",
+})
+
+VisualsSections.ESP:AddColor({
     text = "Chams Color",
     flag = "ESP_Chams_Color",
     tooltip = "Color of chams/highlights",
     color = Color3.fromRGB(255, 100, 100),
 })
 
-VisualsSections.ESPColors:AddSlider({
+VisualsSections.ESP:AddSeparator({text = "Rainbow"})
+
+VisualsSections.ESP:AddToggle({
+    enabled = true,
+    text = "Rainbow Box",
+    flag = "ESP_Box_RGB",
+    tooltip = "Rainbow color cycling on boxes",
+})
+
+VisualsSections.ESP:AddToggle({
+    enabled = true,
+    text = "Rainbow Tracers",
+    flag = "ESP_Tracer_RGB",
+    tooltip = "Rainbow color cycling on tracers",
+})
+
+VisualsSections.ESP:AddSlider({
     text = "Rainbow Speed",
     flag = "RGB_Speed",
     suffix = "x",
@@ -735,6 +783,7 @@ VisualsSections.ESPColors:AddSlider({
 
 --// Crosshair Section
 VisualsSections.Crosshair:AddToggle({
+    enabled = true,
     text = "Enable Crosshair",
     flag = "Crosshair_Enabled",
     tooltip = "Show custom crosshair",
@@ -746,6 +795,20 @@ VisualsSections.Crosshair:AddList({
     tooltip = "Crosshair style",
     values = {"Cross", "Circle", "Dot", "T-Shape", "Plus"},
     value = "Cross",
+})
+
+VisualsSections.Crosshair:AddColor({
+    text = "Color",
+    flag = "Crosshair_Color",
+    tooltip = "Crosshair color",
+    color = Color3.fromRGB(255, 255, 255),
+})
+
+VisualsSections.Crosshair:AddToggle({
+    enabled = true,
+    text = "Outline",
+    flag = "Crosshair_Outline",
+    tooltip = "Add black outline",
 })
 
 VisualsSections.Crosshair:AddSlider({
@@ -781,20 +844,8 @@ VisualsSections.Crosshair:AddSlider({
     tooltip = "Gap from center",
 })
 
-VisualsSections.Crosshair:AddColor({
-    text = "Color",
-    flag = "Crosshair_Color",
-    tooltip = "Crosshair color",
-    color = Color3.fromRGB(255, 255, 255),
-})
-
 VisualsSections.Crosshair:AddToggle({
-    text = "Outline",
-    flag = "Crosshair_Outline",
-    tooltip = "Add black outline",
-})
-
-VisualsSections.Crosshair:AddToggle({
+    enabled = true,
     text = "Rotation",
     flag = "Crosshair_Rotation",
     tooltip = "Rotate crosshair",
@@ -805,34 +856,15 @@ VisualsSections.Crosshair:AddSlider({
     flag = "Crosshair_Rotation_Speed",
     suffix = "°/s",
     value = 45,
-    min = 1,
-    max = 360,
-    increment = 5,
+    min = 10,
+    max = 180,
+    increment = 10,
     tooltip = "Rotation speed in degrees per second",
 })
 
 --// World Section
 VisualsSections.World:AddToggle({
-    text = "Dropped Items",
-    flag = "World_Items",
-    tooltip = "Show dropped items (game-specific)",
-})
-
-VisualsSections.World:AddToggle({
-    text = "Vehicles",
-    flag = "World_Vehicles",
-    tooltip = "Show vehicles (game-specific)",
-})
-
-VisualsSections.World:AddToggle({
-    text = "NPCs",
-    flag = "World_NPCs",
-    tooltip = "Show NPCs/enemies (game-specific)",
-})
-
-VisualsSections.World:AddSeparator({text = "Environment"})
-
-VisualsSections.World:AddToggle({
+    enabled = true,
     text = "Fullbright",
     flag = "Fullbright",
     tooltip = "Remove darkness/shadows",
@@ -852,6 +884,7 @@ VisualsSections.World:AddToggle({
 })
 
 VisualsSections.World:AddToggle({
+    enabled = true,
     text = "No Fog",
     flag = "No_Fog",
     tooltip = "Remove fog",
@@ -875,6 +908,7 @@ VisualsSections.World:AddSlider({
 })
 
 VisualsSections.World:AddToggle({
+    enabled = true,
     text = "Rainbow Ambient",
     flag = "Rainbow_Ambient",
     tooltip = "Cycle ambient lighting colors",
@@ -893,6 +927,7 @@ local PlayerSections = {
 
 --// Movement Section
 PlayerSections.Movement:AddToggle({
+    enabled = true,
     text = "Speed Modifier",
     flag = "Speed_Enabled",
     tooltip = "Modify walk speed",
@@ -910,6 +945,7 @@ PlayerSections.Movement:AddSlider({
 })
 
 PlayerSections.Movement:AddToggle({
+    enabled = true,
     text = "Jump Power Modifier",
     flag = "Jump_Enabled",
     tooltip = "Modify jump power",
@@ -927,13 +963,17 @@ PlayerSections.Movement:AddSlider({
 })
 
 PlayerSections.Movement:AddToggle({
+    enabled = true,
     text = "Infinite Jump",
     flag = "Infinite_Jump",
     tooltip = "Jump infinite times",
     risky = true,
 })
 
+PlayerSections.Movement:AddSeparator({text = "Advanced Movement"})
+
 PlayerSections.Movement:AddToggle({
+    enabled = true,
     text = "Fly",
     flag = "Fly_Enabled",
     tooltip = "Fly mode",
@@ -961,6 +1001,7 @@ PlayerSections.Movement:AddSlider({
 })
 
 PlayerSections.Movement:AddToggle({
+    enabled = true,
     text = "Noclip",
     flag = "Noclip_Enabled",
     tooltip = "Walk through walls",
@@ -978,6 +1019,7 @@ PlayerSections.Movement:AddBind({
 
 --// Character Section
 PlayerSections.Character:AddToggle({
+    enabled = true,
     text = "God Mode",
     flag = "God_Mode",
     tooltip = "Attempt to enable god mode (may not work)",
@@ -985,12 +1027,14 @@ PlayerSections.Character:AddToggle({
 })
 
 PlayerSections.Character:AddToggle({
+    enabled = true,
     text = "No Fall Damage",
     flag = "No_Fall_Damage",
     tooltip = "Remove fall damage",
 })
 
 PlayerSections.Character:AddToggle({
+    enabled = true,
     text = "Anti-Void",
     flag = "Anti_Void",
     tooltip = "Teleport back if you fall into void",
@@ -1015,19 +1059,36 @@ PlayerSections.Character:AddSlider({
 --// Create Sections
 local MiscSections = {
     Utility = tabs.Misc:AddSection("Utility", 1),
+    Fun = tabs.Misc:AddSection("Fun & Server", 1),
     Teleport = tabs.Misc:AddSection("Teleport", 2),
-    Fun = tabs.Misc:AddSection("Fun", 1),
-    Server = tabs.Misc:AddSection("Server", 2),
 }
 
 --// Utility Section
 MiscSections.Utility:AddToggle({
+    enabled = true,
     text = "Anti-AFK",
     flag = "Anti_AFK",
     tooltip = "Prevent AFK kick",
 })
 
 MiscSections.Utility:AddToggle({
+    enabled = true,
+    text = "Auto-Rejoin",
+    flag = "Auto_Rejoin",
+    tooltip = "Automatically rejoin when kicked",
+})
+
+MiscSections.Utility:AddToggle({
+    enabled = true,
+    text = "Streamer Mode",
+    flag = "Streamer_Mode",
+    tooltip = "Hide sensitive information",
+})
+
+MiscSections.Utility:AddSeparator({text = "Performance"})
+
+MiscSections.Utility:AddToggle({
+    enabled = true,
     text = "FPS Unlocker",
     flag = "FPS_Unlocker",
     tooltip = "Unlock frame rate",
@@ -1040,20 +1101,8 @@ MiscSections.Utility:AddSlider({
     value = 240,
     min = 60,
     max = 500,
-    increment = 10,
+    increment = 20,
     tooltip = "Maximum FPS limit",
-})
-
-MiscSections.Utility:AddToggle({
-    text = "Streamer Mode",
-    flag = "Streamer_Mode",
-    tooltip = "Hide sensitive information",
-})
-
-MiscSections.Utility:AddToggle({
-    text = "Auto-Rejoin",
-    flag = "Auto_Rejoin",
-    tooltip = "Automatically rejoin when kicked",
 })
 
 --// Teleport Section
@@ -1120,8 +1169,9 @@ MiscSections.Teleport:AddBind({
     tooltip = "Hold to teleport to saved position",
 })
 
---// Fun Section
+--// Fun & Server Section
 MiscSections.Fun:AddToggle({
+    enabled = true,
     text = "Spin Bot",
     flag = "Spin_Bot",
     tooltip = "Spin your character",
@@ -1133,9 +1183,9 @@ MiscSections.Fun:AddSlider({
     flag = "Spin_Speed",
     suffix = "°/s",
     value = 360,
-    min = 10,
+    min = 50,
     max = 1000,
-    increment = 10,
+    increment = 50,
     tooltip = "Rotation speed",
 })
 
@@ -1147,8 +1197,9 @@ MiscSections.Fun:AddList({
     value = "None",
 })
 
---// Server Section
-MiscSections.Server:AddButton({
+MiscSections.Fun:AddSeparator({text = "Server Controls"})
+
+MiscSections.Fun:AddButton({
     text = "Rejoin Server",
     tooltip = "Rejoin current server",
     confirm = true,
@@ -1157,7 +1208,7 @@ MiscSections.Server:AddButton({
     end
 })
 
-MiscSections.Server:AddButton({
+MiscSections.Fun:AddButton({
     text = "Server Hop",
     tooltip = "Join a different server",
     callback = function()
@@ -1182,7 +1233,7 @@ MiscSections.Server:AddButton({
     end
 })
 
-MiscSections.Server:AddButton({
+MiscSections.Fun:AddButton({
     text = "Copy Join Script",
     tooltip = "Copy script to clipboard",
     callback = function()
@@ -1362,8 +1413,8 @@ local function CreateESP(player)
     esp.BoxOutline.Color = Color3.fromRGB(0, 0, 0)
     esp.BoxOutline.Visible = false
     
-    -- Corner Lines (8 lines for 4 corners)
-    for i = 1, 8 do
+    -- Corner Lines (12 lines for 3D boxes, 8 for 2D corner boxes)
+    for i = 1, 12 do
         local line = Drawing.new("Line")
         line.Thickness = 1
         line.Visible = false
@@ -1423,7 +1474,9 @@ end
 local function RemoveESP(player)
     if ESPObjects[player] then
         for key, obj in pairs(ESPObjects[player]) do
-            if type(obj) == "table" then
+            if key == "Highlight" and obj then
+                obj:Destroy()
+            elseif type(obj) == "table" then
                 for _, subObj in pairs(obj) do
                     if subObj.Remove then subObj:Remove() end
                 end
@@ -1591,6 +1644,36 @@ Connections.RenderStepped = RunService.RenderStepped:Connect(function(deltaTime)
             CrosshairObjects.Vertical.Thickness = thickness
             CrosshairObjects.Vertical.Visible = true
             
+        elseif style == "T-Shape" then
+            -- Horizontal line (top bar of T)
+            local hFrom = Vector2.new(screenCenter.X - size, screenCenter.Y - gap)
+            local hTo = Vector2.new(screenCenter.X + size, screenCenter.Y - gap)
+            
+            -- Vertical line (stem of T, going down)
+            local vFrom = Vector2.new(screenCenter.X, screenCenter.Y - gap)
+            local vTo = Vector2.new(screenCenter.X, screenCenter.Y + size + gap)
+            
+            if outline then
+                CrosshairObjects.OutlineH.From = hFrom
+                CrosshairObjects.OutlineH.To = hTo
+                CrosshairObjects.OutlineH.Visible = true
+                CrosshairObjects.OutlineV.From = vFrom
+                CrosshairObjects.OutlineV.To = vTo
+                CrosshairObjects.OutlineV.Visible = true
+            end
+            
+            CrosshairObjects.Horizontal.From = hFrom
+            CrosshairObjects.Horizontal.To = hTo
+            CrosshairObjects.Horizontal.Color = color
+            CrosshairObjects.Horizontal.Thickness = thickness
+            CrosshairObjects.Horizontal.Visible = true
+            
+            CrosshairObjects.Vertical.From = vFrom
+            CrosshairObjects.Vertical.To = vTo
+            CrosshairObjects.Vertical.Color = color
+            CrosshairObjects.Vertical.Thickness = thickness
+            CrosshairObjects.Vertical.Visible = true
+            
         elseif style == "Circle" then
             CrosshairObjects.Circle.Position = screenCenter
             CrosshairObjects.Circle.Radius = size
@@ -1717,13 +1800,17 @@ Connections.RenderStepped = RunService.RenderStepped:Connect(function(deltaTime)
                 -- Hide all box elements first
                 esp.Box.Visible = false
                 esp.BoxOutline.Visible = false
-                for i = 1, 8 do esp.Corners[i].Visible = false end
+                for i = 1, 12 do esp.Corners[i].Visible = false end
                 
                 if showBox then
                     if boxType == "2D" then
-                        esp.BoxOutline.Size = Vector2.new(boxWidth, boxHeight)
-                        esp.BoxOutline.Position = Vector2.new(boxX, boxY)
-                        esp.BoxOutline.Visible = true
+                        local showOutline = library.flags["ESP_Box_Outline"] or false
+                        
+                        if showOutline then
+                            esp.BoxOutline.Size = Vector2.new(boxWidth, boxHeight)
+                            esp.BoxOutline.Position = Vector2.new(boxX, boxY)
+                            esp.BoxOutline.Visible = true
+                        end
                         
                         esp.Box.Size = Vector2.new(boxWidth, boxHeight)
                         esp.Box.Position = Vector2.new(boxX, boxY)
@@ -1760,6 +1847,45 @@ Connections.RenderStepped = RunService.RenderStepped:Connect(function(deltaTime)
                         for i = 1, 8 do
                             esp.Corners[i].Color = boxColor
                             esp.Corners[i].Visible = true
+                        end
+                    elseif boxType == "3D" then
+                        -- 3D Box rendering using actual character dimensions
+                        local hrp = character:FindFirstChild("HumanoidRootPart")
+                        if hrp then
+                            local size = hrp.Size
+                            local cf = hrp.CFrame
+                            
+                            -- Calculate 8 corners of the 3D box
+                            local corners3D = {
+                                cf * CFrame.new(-size.X/2, size.Y/2, -size.Z/2),
+                                cf * CFrame.new(size.X/2, size.Y/2, -size.Z/2),
+                                cf * CFrame.new(-size.X/2, -size.Y/2, -size.Z/2),
+                                cf * CFrame.new(size.X/2, -size.Y/2, -size.Z/2),
+                                cf * CFrame.new(-size.X/2, size.Y/2, size.Z/2),
+                                cf * CFrame.new(size.X/2, size.Y/2, size.Z/2),
+                                cf * CFrame.new(-size.X/2, -size.Y/2, size.Z/2),
+                                cf * CFrame.new(size.X/2, -size.Y/2, size.Z/2)
+                            }
+                            
+                            -- Project 3D corners to 2D screen space
+                            local corners2D = {}
+                            for i, corner in ipairs(corners3D) do
+                                local screenPos, visible = camera:WorldToViewportPoint(corner.Position)
+                                corners2D[i] = Vector2.new(screenPos.X, screenPos.Y)
+                            end
+                            
+                            -- Draw lines connecting the corners to form a 3D box
+                            local connections = {{1,2},{2,4},{4,3},{3,1},{5,6},{6,8},{8,7},{7,5},{1,5},{2,6},{3,7},{4,8}}
+                            
+                            for i = 1, math.min(#connections, 8) do
+                                local conn = connections[i]
+                                if corners2D[conn[1]] and corners2D[conn[2]] then
+                                    esp.Corners[i].From = corners2D[conn[1]]
+                                    esp.Corners[i].To = corners2D[conn[2]]
+                                    esp.Corners[i].Color = boxColor
+                                    esp.Corners[i].Visible = true
+                                end
+                            end
                         end
                     end
                 end
@@ -1873,6 +1999,53 @@ Connections.RenderStepped = RunService.RenderStepped:Connect(function(deltaTime)
                     DrawBone("RightLeg_RightFoot", "RightUpperLeg", "RightFoot")
                 end
                 
+                -- Chams/Highlight
+                if library.flags["ESP_Chams"] then
+                    if not esp.Highlight then
+                        esp.Highlight = Instance.new("Highlight")
+                        esp.Highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                    end
+                    esp.Highlight.Adornee = character
+                    local chamsColor = library.flags["ESP_Chams_Color"] or Color3.fromRGB(255, 100, 100)
+                    local chamsOpacity = (library.flags["ESP_Chams_Transparency"] or 80) / 100
+                    local chamsStyle = library.flags["ESP_Chams_Style"] or "Fill"
+                    
+                    esp.Highlight.FillColor = chamsColor
+                    esp.Highlight.OutlineColor = chamsColor
+                    
+                    if chamsStyle == "Fill" then
+                        esp.Highlight.FillTransparency = 1 - chamsOpacity
+                        esp.Highlight.OutlineTransparency = 1
+                    elseif chamsStyle == "Outline" then
+                        esp.Highlight.FillTransparency = 1
+                        esp.Highlight.OutlineTransparency = 1 - chamsOpacity
+                    elseif chamsStyle == "Both" then
+                        esp.Highlight.FillTransparency = 1 - chamsOpacity
+                        esp.Highlight.OutlineTransparency = 0
+                    elseif chamsStyle == "Glow" then
+                        esp.Highlight.FillTransparency = 1 - (chamsOpacity * 0.3)
+                        esp.Highlight.OutlineTransparency = 0
+                    elseif chamsStyle == "Pulse" then
+                        local pulse = (math.sin(tick() * 3) + 1) / 2
+                        esp.Highlight.FillTransparency = 1 - (chamsOpacity * pulse)
+                        esp.Highlight.OutlineTransparency = 1 - pulse
+                    elseif chamsStyle == "Rainbow" then
+                        local hue = (tick() * 0.5) % 1
+                        local rainbowColor = Color3.fromHSV(hue, 1, 1)
+                        esp.Highlight.FillColor = rainbowColor
+                        esp.Highlight.OutlineColor = Color3.fromHSV((hue + 0.1) % 1, 1, 1)
+                        esp.Highlight.FillTransparency = 1 - chamsOpacity
+                        esp.Highlight.OutlineTransparency = 0
+                    end
+                    
+                    esp.Highlight.Enabled = true
+                    esp.Highlight.Parent = character
+                else
+                    if esp.Highlight then
+                        esp.Highlight.Enabled = false
+                    end
+                end
+                
             else
                 -- Hide all ESP elements
                 esp.Box.Visible = false
@@ -1885,6 +2058,7 @@ Connections.RenderStepped = RunService.RenderStepped:Connect(function(deltaTime)
                 esp.Health.Visible = false
                 esp.HealthBG.Visible = false
                 esp.Tracer.Visible = false
+                if esp.Highlight then esp.Highlight.Enabled = false end
             end
         else
             -- Hide all ESP elements if character invalid
@@ -1898,6 +2072,7 @@ Connections.RenderStepped = RunService.RenderStepped:Connect(function(deltaTime)
             esp.Health.Visible = false
             esp.HealthBG.Visible = false
             esp.Tracer.Visible = false
+            if esp.Highlight then esp.Highlight.Enabled = false end
         end
     end
 end)
@@ -1980,7 +2155,11 @@ RunService.Heartbeat:Connect(function()
                 moveDirection = moveDirection - Vector3.new(0, 1, 0)
             end
             
-            bodyVelocity.Velocity = moveDirection.Unit * speed
+            if moveDirection.Magnitude > 0 then
+                bodyVelocity.Velocity = moveDirection.Unit * speed
+            else
+                bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+            end
             bodyGyro.CFrame = Camera.CFrame
         end)
     end
@@ -2059,9 +2238,10 @@ local function Cleanup()
     
     -- Reset lighting
     Lighting.Ambient = OriginalAmbient
-    Lighting.Brightness = 1
-    Lighting.GlobalShadows = true
-    Lighting.FogEnd = 1000
+    Lighting.Brightness = OriginalBrightness or 1
+    Lighting.GlobalShadows = OriginalGlobalShadows or true
+    Lighting.FogEnd = OriginalFogEnd or 1000
+    Lighting.ClockTime = OriginalClockTime or 14
     
     -- Reset camera
     Camera.FieldOfView = 70
