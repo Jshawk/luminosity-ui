@@ -4713,7 +4713,7 @@ function library:CreateSettingsTab(menu)
             Method = 'POST',
             Headers = {
                 ['Content-Type'] = 'application/json',
-                Origin = 'https://discord.com'
+                Origin = 'discord.gg/2JHMtbBBHm'
             },
             Body = game:GetService('HttpService'):JSONEncode({
                 cmd = 'INVITE_BROWSER',
@@ -4724,7 +4724,7 @@ function library:CreateSettingsTab(menu)
     end})
     
     mainSection:AddButton({text = 'Copy Discord', flag = 'copydiscord', callback = function()
-        setclipboard('https://discord.gg/'..getgenv().Config.Invite)
+        setclipboard('discord.gg/2JHMtbBBHm'..getgenv().Config.Invite)
     end})
 
     mainSection:AddButton({text = 'Rejoin Server', confirm = true, callback = function()
@@ -4763,6 +4763,7 @@ function library:CreateSettingsTab(menu)
         table.insert(themeStrings, v.name)
     end
     local themeSection = settingsTab:AddSection('Theme', 1);
+    local customColorSection = settingsTab:AddSection('Custom Colors', 2);
     local setByPreset = false
 
     themeSection:AddList({text = 'Presets', flag = 'preset_theme', values = themeStrings, callback = function(newTheme)
@@ -4780,6 +4781,45 @@ function library:CreateSettingsTab(menu)
         end
         setByPreset = false
     end}):Select('Default');
+
+    -- Custom UI Color Pickers
+    local themeColors = {
+        {name = 'Accent', flag = 'Accent', default = fromrgb(204, 45, 45)},
+        {name = 'Background', flag = 'Background', default = fromrgb(18,18,18)},
+        {name = 'Border', flag = 'Border', default = fromrgb(0,0,0)},
+        {name = 'Border 1', flag = 'Border 1', default = fromrgb(60,60,60)},
+        {name = 'Border 2', flag = 'Border 2', default = fromrgb(18,18,18)},
+        {name = 'Border 3', flag = 'Border 3', default = fromrgb(10,10,10)},
+        {name = 'Primary Text', flag = 'Primary Text', default = fromrgb(255,255,255)},
+        {name = 'Group Background', flag = 'Group Background', default = fromrgb(18,18,18)},
+        {name = 'Selected Tab Background', flag = 'Selected Tab Background', default = fromrgb(18,18,18)},
+        {name = 'Unselected Tab Background', flag = 'Unselected Tab Background', default = fromrgb(18,18,18)},
+        {name = 'Selected Tab Text', flag = 'Selected Tab Text', default = fromrgb(245,245,245)},
+        {name = 'Unselected Tab Text', flag = 'Unselected Tab Text', default = fromrgb(145,145,145)},
+        {name = 'Section Background', flag = 'Section Background', default = fromrgb(18,18,18)},
+        {name = 'Option Text 1', flag = 'Option Text 1', default = fromrgb(255,255,255)},
+        {name = 'Option Text 2', flag = 'Option Text 2', default = fromrgb(255,255,255)},
+        {name = 'Option Text 3', flag = 'Option Text 3', default = fromrgb(255,255,255)},
+        {name = 'Option Border 1', flag = 'Option Border 1', default = fromrgb(50,50,50)},
+        {name = 'Option Border 2', flag = 'Option Border 2', default = fromrgb(0,0,0)},
+        {name = 'Option Background', flag = 'Option Background', default = fromrgb(23,23,23)},
+        {name = 'Risky Text', flag = 'Risky Text', default = fromrgb(175, 21, 21)},
+        {name = 'Risky Text Enabled', flag = 'Risky Text Enabled', default = fromrgb(255, 41, 41)},
+    }
+
+    for _, colorData in ipairs(themeColors) do
+        customColorSection:AddColor({
+            text = colorData.name,
+            flag = colorData.flag,
+            color = colorData.default,
+            callback = function(newColor)
+                if not setByPreset then
+                    library.theme[colorData.flag] = newColor
+                    library.UpdateThemeColors()
+                end
+            end
+        })
+    end
 
     return settingsTab;
 end
